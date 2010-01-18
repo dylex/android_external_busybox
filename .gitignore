@@ -11,12 +11,14 @@
 # Never ignore these
 #
 !.gitignore
+!.config
 
 #
 # Normal output
 #
 /busybox
 /busybox_unstripped*
+/busybox.links
 
 #
 # Backups / patches

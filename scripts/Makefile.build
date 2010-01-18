@@ -331,6 +331,9 @@ ifneq ($(cmd_files),)
   include $(cmd_files)
 endif
 
+PHONY += show-src
+show-src:
+	@echo $(lib-y:.o=.c)
 
 # Declare the contents of the .PHONY variable as phony.  We keep that
 # information in a variable se we can use it in if_changed and friends.

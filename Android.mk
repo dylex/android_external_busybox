@@ -1,262 +1,20 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := \
-	console-tools/reset.c \
-	console-tools/clear.c \
-	coreutils/nice.c \
-	coreutils/touch.c \
-	coreutils/nohup.c \
-	coreutils/test.c \
-	coreutils/wc.c \
-	coreutils/ln.c \
-	coreutils/env.c \
-	coreutils/rmdir.c \
-	coreutils/chown.c \
-	coreutils/md5_sha1_sum.c \
-	coreutils/readlink.c \
-	coreutils/cat.c \
-	coreutils/tr.c \
-	coreutils/od.c \
-	coreutils/cut.c \
-	coreutils/head.c \
-	coreutils/ls.c \
-	coreutils/stty.c \
-	coreutils/mv.c \
-	coreutils/chmod.c \
-	coreutils/yes.c \
-	coreutils/pwd.c \
-	coreutils/test_ptr_hack.c \
-	coreutils/du.c \
-	coreutils/tee.c \
-	coreutils/mkfifo.c \
-	coreutils/dirname.c \
-	coreutils/expr.c \
-	coreutils/uniq.c \
-	coreutils/rm.c \
-	coreutils/libcoreutils/cp_mv_stat.c \
-	coreutils/libcoreutils/getopt_mk_fifo_nod.c \
-	coreutils/tty.c \
-	coreutils/install.c \
-	coreutils/tail.c \
-	coreutils/sync.c \
-	coreutils/cp.c \
-	coreutils/false.c \
-	coreutils/mkdir.c \
-	coreutils/printf.c \
-	coreutils/basename.c \
-	coreutils/uname.c \
-	coreutils/echo.c \
-	coreutils/date.c \
-	coreutils/mknod.c \
-	coreutils/stat.c \
-	coreutils/sort.c \
-	coreutils/df.c \
-	coreutils/sleep.c \
-	coreutils/dd.c \
-	coreutils/true.c \
-	coreutils/seq.c \
-	coreutils/chgrp.c \
-	modutils/modprobe-small.c \
-	miscutils/setsid.c \
-	miscutils/mountpoint.c \
-	miscutils/time.c \
-	miscutils/bbconfig.c \
-	miscutils/devmem.c \
-	miscutils/less.c \
-	miscutils/strings.c \
-	miscutils/crond.c \
-	shell/ash_ptr_hack.c \
-	shell/math.c \
-	shell/ash.c \
-	procps/free.c \
-	procps/pidof.c \
-	procps/watch.c \
-	procps/ps.c \
-	procps/renice.c \
-	procps/pgrep.c \
-	procps/top.c \
-	procps/uptime.c \
-	procps/sysctl.c \
-	procps/kill.c \
-	procps/fuser.c \
-	findutils/xargs.c \
-	findutils/grep.c \
-	findutils/find.c \
-	libbb/default_error_retval.c \
-	libbb/inode_hash.c \
-	libbb/speed_table.c \
-	libbb/getopt32.c \
-	libbb/get_line_from_file.c \
-	libbb/xregcomp.c \
-	libbb/simplify_path.c \
-	libbb/info_msg.c \
-	libbb/ask_confirmation.c \
-	libbb/xfuncs.c \
-	libbb/restricted_shell.c \
-	libbb/messages.c \
-	libbb/crc32.c \
-	libbb/printable.c \
-	libbb/appletlib.c \
-	libbb/read.c \
-	libbb/lineedit_ptr_hack.c \
-	libbb/perror_msg_and_die.c \
-	libbb/fgets_str.c \
-	libbb/last_char_is.c \
-	libbb/concat_subpath_file.c \
-	libbb/md5.c \
-	libbb/get_console.c \
-	libbb/find_pid_by_name.c \
-	libbb/bb_qsort.c \
-	libbb/read_key.c \
-	libbb/process_escape_sequence.c \
-	libbb/mode_string.c \
-	libbb/loop.c \
-	libbb/xgethostbyname.c \
-	libbb/vdprintf.c \
-	libbb/concat_path_file.c \
-	libbb/execable.c \
-	libbb/herror_msg_and_die.c \
-	libbb/parse_mode.c \
-	libbb/create_icmp6_socket.c \
-	libbb/match_fstype.c \
-	libbb/uuencode.c \
-	libbb/xfunc_die.c \
-	libbb/time.c \
-	libbb/udp_io.c \
-	libbb/xfuncs_printf.c \
-	libbb/dump.c \
-	libbb/device_open.c \
-	libbb/isdirectory.c \
-	libbb/run_shell.c \
-	libbb/llist.c \
-	libbb/wfopen.c \
-	libbb/skip_whitespace.c \
-	libbb/find_mount_point.c \
-	libbb/human_readable.c \
-	libbb/signals.c \
-	libbb/copyfd.c \
-	libbb/fclose_nonstdin.c \
-	libbb/remove_file.c \
-	libbb/compare_string_array.c \
-	libbb/safe_poll.c \
-	libbb/xconnect.c \
-	libbb/error_msg_and_die.c \
-	libbb/safe_gethostname.c \
-	libbb/make_directory.c \
-	libbb/copy_file.c \
-	libbb/setup_environment.c \
-	libbb/safe_strncpy.c \
-	libbb/fflush_stdout_and_exit.c \
-	libbb/get_last_path_component.c \
-	libbb/full_write.c \
-	libbb/kernel_version.c \
-	libbb/ptr_to_globals.c \
-	libbb/procps.c \
-	libbb/create_icmp_socket.c \
-	libbb/inet_common.c \
-	libbb/error_msg.c \
-	libbb/str_tolower.c \
-	libbb/perror_nomsg.c \
-	libbb/bb_pwd.c \
-	libbb/find_root_device.c \
-	libbb/perror_msg.c \
-	libbb/xgetcwd.c \
-	libbb/parse_config.c \
-	libbb/print_flags.c \
-	libbb/safe_write.c \
-	libbb/bb_do_delay.c \
-	libbb/bb_askpass.c \
-	libbb/verror_msg.c \
-	libbb/getpty.c \
-	libbb/vfork_daemon_rexec.c \
-	libbb/mtab_file.c \
-	libbb/strrstr.c \
-	libbb/warn_ignoring_args.c \
-	libbb/bb_basename.c \
-	libbb/change_identity.c \
-	libbb/wfopen_input.c \
-	libbb/login.c \
-	libbb/xrealloc_vector.c \
-	libbb/chomp.c \
-	libbb/makedev.c \
-	libbb/write.c \
-	libbb/perror_nomsg_and_die.c \
-	libbb/recursive_action.c \
-	libbb/pidfile.c \
-	libbb/bb_strtonum.c \
-	libbb/lineedit.c \
-	libbb/u_signal_names.c \
-	libbb/sha1.c \
-	libbb/herror_msg.c \
-	libbb/xatonum.c \
-	libbb/xreadlink.c \
-	libbb/trim.c \
-	libbb/rtc.c \
-	util-linux/swaponoff.c \
-	util-linux/umount.c \
-	util-linux/mkswap.c \
-	util-linux/hexdump.c \
-	util-linux/rdev.c \
-	util-linux/fdisk.c \
-	util-linux/getopt.c \
-	util-linux/mount.c \
-	util-linux/freeramdisk.c \
-	util-linux/losetup.c \
-	util-linux/more.c \
-	util-linux/dmesg.c \
-	networking/ping.c \
-	networking/traceroute.c \
-	networking/nc.c \
-	networking/telnet.c \
-	networking/wget.c \
-	networking/netstat.c \
-	networking/route.c \
-	networking/interface.c \
-	networking/ifconfig.c \
-	archival/libunarchive/data_extract_all.c \
-	archival/libunarchive/decompress_bunzip2.c \
-	archival/libunarchive/open_transformer.c \
-	archival/libunarchive/data_skip.c \
-	archival/libunarchive/seek_by_jump.c \
-	archival/libunarchive/filter_accept_list.c \
-	archival/libunarchive/header_verbose_list.c \
-	archival/libunarchive/get_header_tar_gz.c \
-	archival/libunarchive/get_header_tar.c \
-	archival/libunarchive/find_list_entry.c \
-	archival/libunarchive/init_handle.c \
-	archival/libunarchive/seek_by_read.c \
-	archival/libunarchive/data_align.c \
-	archival/libunarchive/data_extract_to_stdout.c \
-	archival/libunarchive/get_header_tar_bz2.c \
-	archival/libunarchive/data_extract_to_buffer.c \
-	archival/libunarchive/get_header_cpio.c \
-	archival/libunarchive/header_skip.c \
-	archival/libunarchive/filter_accept_reject_list.c \
-	archival/libunarchive/header_list.c \
-	archival/libunarchive/decompress_unzip.c \
-	archival/libunarchive/filter_accept_all.c \
-	archival/unzip.c \
-	archival/gzip.c \
-	archival/tar.c \
-	archival/bbunzip.c \
-	archival/bzip2.c \
-	archival/cpio.c \
-	e2fsprogs/chattr.c \
-	e2fsprogs/lsattr.c \
-	e2fsprogs/e2fs_lib.c \
-	applets/applets.c \
-	debianutils/mktemp.c \
-	debianutils/which.c \
-	debianutils/run_parts.c \
-	editors/sed.c \
-	editors/vi.c \
-	editors/awk.c \
-	editors/patch.c \
-	editors/diff.c \
-	editors/cmp.c \
-	editors/ed.c \
-	libpwdgrp/uidgid_get.c \
+# piggy-back on the normal makefile
+# ideally these things would be moved outside the source directory
+#
+gen := $(LOCAL_PATH)/include/autoconf.h $(LOCAL_PATH)/include/bbconfigopts.h $(LOCAL_PATH)/include/applet_tables.h
+LOCAL_GENERATED_SOURCES += $(gen)
+$(gen):
+	make -C $(LOCAL_PATH) prepare
+
+links := $(LOCAL_PATH)/busybox.links
+LOCAL_GENERATED_SOURCES += $(links)
+$(links):
+	make -C $(LOCAL_PATH) busybox.links
+
+LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
 	../clearsilver/util/regex/regex.c \
 	libbb/android.c
 
@@ -264,15 +22,29 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/include $(LOCAL_PATH)/libbb \
 	external/clearsilver \
 	external/clearsilver/util/regex
-LOCAL_SHARED_LIBRARIES := libm
-
-LOCAL_MODULE := busybox
-LOCAL_MODULE_CLASS := OPTIONAL_EXECUTABLES
 
 LOCAL_CFLAGS := \
 	-Werror=implicit \
 	-DNDEBUG \
 	-include include/autoconf.h \
-	-D'BB_VER="1.15.3android"' -DBB_BT=AUTOCONF_TIMESTAMP
+	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
+
+LOCAL_MODULE := busybox
+LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 
 include $(BUILD_EXECUTABLE)
+
+SYMLINKS := $(addprefix $(TARGET_OUT_OPTIONAL_EXECUTABLES)/,$(notdir $(shell cat $(LOCAL_PATH)/busybox.links)))
+$(SYMLINKS): BUSYBOX_BINARY := $(LOCAL_MODULE)
+$(SYMLINKS): $(LOCAL_INSTALLED_MODULE)
+	@echo "Symlink: $@ -> $(BUSYBOX_BINARY)"
+	@mkdir -p $(dir $@)
+	@rm -rf $@
+	$(hide) ln -sf $(BUSYBOX_BINARY) $@
+
+ALL_DEFAULT_INSTALLED_MODULES += $(SYMLINKS)
+
+# We need this so that the installed files could be picked up based on the
+# local module name
+ALL_MODULES.$(LOCAL_MODULE).INSTALLED := \
+    $(ALL_MODULES.$(LOCAL_MODULE).INSTALLED) $(SYMLINKS)

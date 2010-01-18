@@ -1321,6 +1321,11 @@ endif	# skip-makefile
 PHONY += FORCE
 FORCE:
 
+show-sources:
+	@for f in $(busybox-dirs) ; do \
+		$(MAKE) $(build)=$$f show-src ; \
+	done
+
 -include $(srctree)/Makefile.custom
 
 # Declare the contents of the .PHONY variable as phony.  We keep that
