@@ -9,7 +9,13 @@
 
 #include "libbb.h"
 #include <mntent.h>
+#ifndef __BIONIC__
 #include <sys/swap.h>
+#endif
+
+#ifndef MNTTYPE_SWAP
+#define MNTTYPE_SWAP "swap"
+#endif
 
 #if ENABLE_FEATURE_SWAPON_PRI
 struct globals {

@@ -355,7 +355,11 @@ int cpio_main(int argc UNUSED_PARAM, char **argv)
 			bb_show_usage();
 		if (opt & CPIO_OPT_FILE) {
 			fclose(stdout);
+#ifdef __BIONIC__
+			*stdout = *fopen_for_write(cpio_filename);
+#else
 			stdout = fopen_for_write(cpio_filename);
+#endif
 			/* Paranoia: I don't trust libc that much */
 			xdup2(fileno(stdout), STDOUT_FILENO);
 		}

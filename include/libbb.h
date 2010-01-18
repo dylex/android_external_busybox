@@ -95,7 +95,7 @@ int klogctl(int type, char *b, int len);
 /* This is declared here rather than #including <libgen.h> in order to avoid
  * confusing the two versions of basename.  See the dirname/basename man page
  * for details. */
-#if !defined __FreeBSD__
+#if !defined __FreeBSD__ && !defined __BIONIC__
 char *dirname(char *path);
 #endif
 /* Include our own copy of struct sysinfo to avoid binary compatibility

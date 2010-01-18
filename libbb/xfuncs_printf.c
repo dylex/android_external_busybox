@@ -298,7 +298,7 @@ char* FAST_FUNC xasprintf(const char *format, ...)
 	return string_ptr;
 }
 
-#if 0 /* If we will ever meet a libc which hasn't [f]dprintf... */
+#if defined(__BIONIC__) /* If we will ever meet a libc which hasn't [f]dprintf... */
 int FAST_FUNC fdprintf(int fd, const char *format, ...)
 {
 	va_list p;

@@ -194,7 +194,8 @@ char *strchrnul(const char *s, int c);
 
 #ifndef __APPLE__
 # include <arpa/inet.h>
-# if !defined(__socklen_t_defined) && !defined(_SOCKLEN_T_DECLARED)
+# if !defined(__socklen_t_defined) && !defined(_SOCKLEN_T_DECLARED) \
+	&& !defined(__BIONIC__)
 typedef int socklen_t;
 # endif
 #else
@@ -228,11 +229,14 @@ typedef int socklen_t;
 /* Don't perpetuate e2fsck crap into the headers.  Clean up e2fsck instead. */
 
 #if defined __GLIBC__ || defined __UCLIBC__ \
- || defined __dietlibc__ || defined _NEWLIB_VERSION
+ || defined __dietlibc__ || defined _NEWLIB_VERSION \
+ || defined __BIONIC__
 # include <features.h>
 # define HAVE_FEATURES_H
 # include <stdint.h>
-# define HAVE_STDINT_H
+# ifndef HAVE_STDINT_H
+#  define HAVE_STDINT_H
+# endif
 #elif !defined __APPLE__
 /* Largest integral types. */
 # if BB_BIG_ENDIAN
@@ -298,14 +302,14 @@ typedef unsigned smalluint;
 /* Platforms that haven't got dprintf need to implement fdprintf() in
  * libbb.  This would require a platform.c.  It's not going to be cleaned
  * out of the tree, so stop saying it should be. */
-#if !defined(__dietlibc__)
+#if !defined(__dietlibc__) && !defined(__BIONIC__)
 /* Needed for: glibc */
 /* Not needed for: dietlibc */
 /* Others: ?? (add as needed) */
 # define fdprintf dprintf
 #endif
 
-#if defined(__dietlibc__)
+#if defined(__dietlibc__) || defined(__BIONIC__)
 static ALWAYS_INLINE char* strchrnul(const char *s, char c)
 {
 	while (*s && *s != c) ++s;
@@ -344,5 +348,8 @@ static ALWAYS_INLINE char* strchrnul(const char *s, char c)
 
 #endif
 
+#if defined(__BIONIC__)
+#include "android.h"
+#endif
 
 #endif
