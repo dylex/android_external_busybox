@@ -1,19 +1,6 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-# piggy-back on the normal makefile
-# ideally these things would be moved outside the source directory
-#
-gen := $(LOCAL_PATH)/include/autoconf.h $(LOCAL_PATH)/include/bbconfigopts.h $(LOCAL_PATH)/include/applet_tables.h
-LOCAL_GENERATED_SOURCES += $(gen)
-$(gen):
-	make -C $(LOCAL_PATH) prepare
-
-links := $(LOCAL_PATH)/busybox.links
-LOCAL_GENERATED_SOURCES += $(links)
-$(links):
-	make -C $(LOCAL_PATH) busybox.links
-
 LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
 	../clearsilver/util/regex/regex.c \
 	libbb/android.c
@@ -34,7 +21,10 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 
 include $(BUILD_EXECUTABLE)
 
-SYMLINKS := $(addprefix $(TARGET_OUT_OPTIONAL_EXECUTABLES)/,$(notdir $(shell cat $(LOCAL_PATH)/busybox.links)))
+links := $(shell cat $(LOCAL_PATH)/busybox.links)
+# nc is provided by external/netcat
+exclude := nc
+SYMLINKS := $(addprefix $(TARGET_OUT_OPTIONAL_EXECUTABLES)/,$(filter-out $(exclude),$(notdir $(links))))
 $(SYMLINKS): BUSYBOX_BINARY := $(LOCAL_MODULE)
 $(SYMLINKS): $(LOCAL_INSTALLED_MODULE)
 	@echo "Symlink: $@ -> $(BUSYBOX_BINARY)"

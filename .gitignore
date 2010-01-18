@@ -18,7 +18,6 @@
 #
 /busybox
 /busybox_unstripped*
-/busybox.links
 
 #
 # Backups / patches
