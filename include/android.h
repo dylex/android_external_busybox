@@ -49,4 +49,7 @@ struct __sFILE;
 int addmntent(struct __sFILE *, const struct mntent *);
 struct mntent *getmntent_r(struct __sFILE *fp, struct mntent *mnt, char *buf, int buflen);
 
+/* bionic's vfork is rather broken; for now a terrible bandaid: */
+#define vfork fork
+
 #endif
