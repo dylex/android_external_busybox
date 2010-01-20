@@ -329,10 +329,10 @@ static int writeTarHeader(struct TarBallInfo *tbInfo,
 		header.typeflag = FIFOTYPE;
 	} else if (S_ISREG(statbuf->st_mode)) {
 		if (sizeof(statbuf->st_size) > 4
-		 && statbuf->st_size > (off_t)0777777777777LL
+		 && statbuf->st_size > (filesize_t)0777777777777LL
 		) {
 			bb_error_msg_and_die("cannot store file '%s' "
-				"of size %"OFF_FMT"d, aborting",
+				"of size %"FILESIZE_FMT"d, aborting",
 				fileName, statbuf->st_size);
 		}
 		header.typeflag = REGTYPE;

@@ -767,7 +767,7 @@ static int list_single(const struct dnode *dn)
 	if (all_fmt & LIST_INO)
 		column += printf("%7lu ", (long) dn->dstat.st_ino);
 	if (all_fmt & LIST_BLOCKS)
-		column += printf("%4"OFF_FMT"u ", (off_t) dn->dstat.st_blocks >> 1);
+		column += printf("%4"FILESIZE_FMT"u ", (filesize_t) dn->dstat.st_blocks >> 1);
 	if (all_fmt & LIST_MODEBITS)
 		column += printf("%-10s ", (char *) bb_mode_string(dn->dstat.st_mode));
 	if (all_fmt & LIST_NLINKS)
@@ -802,7 +802,7 @@ static int list_single(const struct dnode *dn)
 				column += printf("%9s ",
 					make_human_readable_str(dn->dstat.st_size, 1, 0));
 			} else {
-				column += printf("%9"OFF_FMT"u ", (off_t) dn->dstat.st_size);
+				column += printf("%9"FILESIZE_FMT"u ", (filesize_t) dn->dstat.st_size);
 			}
 		}
 	}

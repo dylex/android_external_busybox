@@ -195,6 +195,15 @@ typedef unsigned long uoff_t;
 /* scary. better ideas? (but do *test* them first!) */
 #define OFF_T_MAX  ((off_t)~((off_t)1 << (sizeof(off_t)*8-1)))
 
+#ifdef __BIONIC__
+/* bionic uses stat64 which has long long file sizes, whereas off_t is only long bits */
+typedef long long filesize_t;
+#define FILESIZE_FMT "ll"
+#else
+typedef off_t filesize_t;
+#define FILESIZE_FMT OFF_FMT
+#endif
+
 /* Some useful definitions */
 #undef FALSE
 #define FALSE   ((int) 0)
