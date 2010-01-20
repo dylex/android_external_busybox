@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.15.3android
  */
-#define AUTOCONF_TIMESTAMP "2010-01-20 00:33:31 EST"
+#define AUTOCONF_TIMESTAMP "2010-01-20 00:54:27 EST"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -140,10 +140,10 @@
 #define ENABLE_FEATURE_SHARED_BUSYBOX 0
 #define IF_FEATURE_SHARED_BUSYBOX(...)
 #define IF_NOT_FEATURE_SHARED_BUSYBOX(...) __VA_ARGS__
-#define CONFIG_LFS 1
-#define ENABLE_LFS 1
-#define IF_LFS(...) __VA_ARGS__
-#define IF_NOT_LFS(...)
+#undef CONFIG_LFS
+#define ENABLE_LFS 0
+#define IF_LFS(...)
+#define IF_NOT_LFS(...) __VA_ARGS__
 #define CONFIG_CROSS_COMPILER_PREFIX "arm-eabi-"
 #define ENABLE_CROSS_COMPILER_PREFIX 1
 #define IF_CROSS_COMPILER_PREFIX(...) __VA_ARGS__

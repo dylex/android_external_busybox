@@ -41,7 +41,7 @@ static const char *const bbconfig_config =
 "# CONFIG_BUILD_LIBBUSYBOX is not set\n"
 "# CONFIG_FEATURE_INDIVIDUAL is not set\n"
 "# CONFIG_FEATURE_SHARED_BUSYBOX is not set\n"
-"CONFIG_LFS=y\n"
+"# CONFIG_LFS is not set\n"
 "CONFIG_CROSS_COMPILER_PREFIX=\"arm-eabi-\"\n"
 "CONFIG_EXTRA_CFLAGS=\"-Os\"\n"
 "# CONFIG_DEBUG is not set\n"
