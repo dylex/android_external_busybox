@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.15.3android
  */
-#define AUTOCONF_TIMESTAMP "2010-01-18 14:30:48 EST"
+#define AUTOCONF_TIMESTAMP "2010-01-20 00:33:31 EST"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -104,10 +104,10 @@
 #define ENABLE_BUSYBOX_EXEC_PATH 1
 #define IF_BUSYBOX_EXEC_PATH(...) __VA_ARGS__
 #define IF_NOT_BUSYBOX_EXEC_PATH(...)
-#define CONFIG_FEATURE_SYSLOG 1
-#define ENABLE_FEATURE_SYSLOG 1
-#define IF_FEATURE_SYSLOG(...) __VA_ARGS__
-#define IF_NOT_FEATURE_SYSLOG(...)
+#undef CONFIG_FEATURE_SYSLOG
+#define ENABLE_FEATURE_SYSLOG 0
+#define IF_FEATURE_SYSLOG(...)
+#define IF_NOT_FEATURE_SYSLOG(...) __VA_ARGS__
 #undef CONFIG_FEATURE_HAVE_RPC
 #define ENABLE_FEATURE_HAVE_RPC 0
 #define IF_FEATURE_HAVE_RPC(...)
@@ -1992,10 +1992,10 @@
 #define ENABLE_CHRT 0
 #define IF_CHRT(...)
 #define IF_NOT_CHRT(...) __VA_ARGS__
-#define CONFIG_CROND 1
-#define ENABLE_CROND 1
-#define IF_CROND(...) __VA_ARGS__
-#define IF_NOT_CROND(...)
+#undef CONFIG_CROND
+#define ENABLE_CROND 0
+#define IF_CROND(...)
+#define IF_NOT_CROND(...) __VA_ARGS__
 #undef CONFIG_FEATURE_CROND_D
 #define ENABLE_FEATURE_CROND_D 0
 #define IF_FEATURE_CROND_D(...)
@@ -2004,7 +2004,7 @@
 #define ENABLE_FEATURE_CROND_CALL_SENDMAIL 0
 #define IF_FEATURE_CROND_CALL_SENDMAIL(...)
 #define IF_NOT_FEATURE_CROND_CALL_SENDMAIL(...) __VA_ARGS__
-#define CONFIG_FEATURE_CROND_DIR "/system/etc/cron"
+#define CONFIG_FEATURE_CROND_DIR ""
 #define ENABLE_FEATURE_CROND_DIR 1
 #define IF_FEATURE_CROND_DIR(...) __VA_ARGS__
 #define IF_NOT_FEATURE_CROND_DIR(...)
