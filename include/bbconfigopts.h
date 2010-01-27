@@ -95,7 +95,7 @@ static const char *const bbconfig_config =
 "# CONFIG_FEATURE_DPKG_DEB_EXTRACT_ONLY is not set\n"
 "CONFIG_GUNZIP=y\n"
 "CONFIG_GZIP=y\n"
-"# CONFIG_LZOP is not set\n"
+"CONFIG_LZOP=y\n"
 "# CONFIG_LZOP_COMPR_HIGH is not set\n"
 "# CONFIG_RPM2CPIO is not set\n"
 "# CONFIG_RPM is not set\n"

@@ -19,7 +19,6 @@
 /bin/cmp
 /bin/cp
 /bin/cpio
-/sbin/crond
 /bin/cut
 /bin/date
 /bin/dc
@@ -63,6 +62,8 @@
 /bin/ls
 /bin/lsattr
 /sbin/lsmod
+/bin/lzop
+/bin/lzopcat
 /bin/md5sum
 /bin/mkdir
 /bin/mkfifo
@@ -128,6 +129,7 @@
 /bin/umount
 /bin/uname
 /bin/uniq
+/bin/unlzop
 /bin/unzip
 /bin/uptime
 /bin/uudecode

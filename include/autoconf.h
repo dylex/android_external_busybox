@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.15.3android
  */
-#define AUTOCONF_TIMESTAMP "2010-01-20 00:54:27 EST"
+#define AUTOCONF_TIMESTAMP "2010-01-27 13:53:15 EST"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -376,10 +376,10 @@
 #define ENABLE_GZIP 1
 #define IF_GZIP(...) __VA_ARGS__
 #define IF_NOT_GZIP(...)
-#undef CONFIG_LZOP
-#define ENABLE_LZOP 0
-#define IF_LZOP(...)
-#define IF_NOT_LZOP(...) __VA_ARGS__
+#define CONFIG_LZOP 1
+#define ENABLE_LZOP 1
+#define IF_LZOP(...) __VA_ARGS__
+#define IF_NOT_LZOP(...)
 #undef CONFIG_LZOP_COMPR_HIGH
 #define ENABLE_LZOP_COMPR_HIGH 0
 #define IF_LZOP_COMPR_HIGH(...)
