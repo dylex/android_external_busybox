@@ -15,6 +15,7 @@
 /bin/chgrp
 /bin/chmod
 /bin/chown
+/bin/cksum
 /bin/clear
 /bin/cmp
 /bin/cp
@@ -29,6 +30,7 @@
 /bin/diff
 /bin/dirname
 /bin/dmesg
+/bin/dos2unix
 /bin/du
 /bin/echo
 /bin/ed
@@ -56,6 +58,7 @@
 /bin/kill
 /bin/killall
 /bin/killall5
+/bin/length
 /bin/less
 /bin/ln
 /sbin/losetup
@@ -81,14 +84,17 @@
 /bin/nohup
 /bin/od
 /bin/patch
+/bin/pgrep
 /bin/pidof
 /bin/ping
 /bin/pkill
+/bin/printenv
 /bin/printf
 /bin/ps
 /bin/pwd
 /sbin/rdev
 /bin/readlink
+/bin/realpath
 /bin/renice
 /bin/reset
 /bin/rm
@@ -119,6 +125,7 @@
 /bin/tee
 /bin/telnet
 /bin/test
+/bin/tftp
 /bin/time
 /bin/top
 /bin/touch
@@ -129,9 +136,11 @@
 /bin/umount
 /bin/uname
 /bin/uniq
+/bin/unix2dos
 /bin/unlzop
 /bin/unzip
 /bin/uptime
+/bin/usleep
 /bin/uudecode
 /bin/uuencode
 /bin/vi

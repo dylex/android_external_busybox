@@ -20,9 +20,13 @@ int usleep_main(int argc UNUSED_PARAM, char **argv)
 		bb_show_usage();
 	}
 
+#ifdef __BIONIC__
+	usleep(xatou(argv[1]));
+#else
 	if (usleep(xatou(argv[1]))) {
 		bb_perror_nomsg_and_die();
 	}
+#endif
 
 	return EXIT_SUCCESS;
 }
