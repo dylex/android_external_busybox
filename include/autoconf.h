@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.15.3android
  */
-#define AUTOCONF_TIMESTAMP "2010-01-28 17:42:58 EST"
+#define AUTOCONF_TIMESTAMP "2010-01-28 17:44:32 EST"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -1572,7 +1572,7 @@
 #define ENABLE_FEATURE_MODUTILS_SYMBOLS 0
 #define IF_FEATURE_MODUTILS_SYMBOLS(...)
 #define IF_NOT_FEATURE_MODUTILS_SYMBOLS(...) __VA_ARGS__
-#define CONFIG_DEFAULT_MODULES_DIR "/system/lib/modules"
+#define CONFIG_DEFAULT_MODULES_DIR "/system/modules/lib/modules"
 #define ENABLE_DEFAULT_MODULES_DIR 1
 #define IF_DEFAULT_MODULES_DIR(...) __VA_ARGS__
 #define IF_NOT_DEFAULT_MODULES_DIR(...)
