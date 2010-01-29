@@ -1,6 +1,8 @@
 LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
+KERNEL_MODULES_DIR?=/system/modules/lib/modules
+
 LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
 	../clearsilver/util/regex/regex.c \
 	libbb/android.c
@@ -14,6 +16,7 @@ LOCAL_CFLAGS := \
 	-Werror=implicit \
 	-DNDEBUG \
 	-include include/autoconf.h \
+	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
 	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
 
 LOCAL_MODULE := busybox

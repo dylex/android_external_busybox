@@ -380,7 +380,6 @@ static const char *const bbconfig_config =
 "# CONFIG_FEATURE_CHECK_TAINTED_MODULE is not set\n"
 "# CONFIG_FEATURE_MODUTILS_ALIAS is not set\n"
 "# CONFIG_FEATURE_MODUTILS_SYMBOLS is not set\n"
-"CONFIG_DEFAULT_MODULES_DIR=\"/system/modules/lib/modules\"\n"
 "CONFIG_DEFAULT_DEPMOD_FILE=\"modules.dep\"\n"
 "# CONFIG_ACPID is not set\n"
 "# CONFIG_FEATURE_ACPID_COMPAT is not set\n"
