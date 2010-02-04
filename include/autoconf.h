@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.15.3android
  */
-#define AUTOCONF_TIMESTAMP "2010-01-29 01:54:08 EST"
+#define AUTOCONF_TIMESTAMP "2010-02-04 10:21:58 EST"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -476,10 +476,10 @@
 #define ENABLE_CHOWN 1
 #define IF_CHOWN(...) __VA_ARGS__
 #define IF_NOT_CHOWN(...)
-#undef CONFIG_CHROOT
-#define ENABLE_CHROOT 0
-#define IF_CHROOT(...)
-#define IF_NOT_CHROOT(...) __VA_ARGS__
+#define CONFIG_CHROOT 1
+#define ENABLE_CHROOT 1
+#define IF_CHROOT(...) __VA_ARGS__
+#define IF_NOT_CHROOT(...)
 #define CONFIG_CKSUM 1
 #define ENABLE_CKSUM 1
 #define IF_CKSUM(...) __VA_ARGS__
@@ -892,10 +892,10 @@
 #define ENABLE_WHO 0
 #define IF_WHO(...)
 #define IF_NOT_WHO(...) __VA_ARGS__
-#undef CONFIG_WHOAMI
-#define ENABLE_WHOAMI 0
-#define IF_WHOAMI(...)
-#define IF_NOT_WHOAMI(...) __VA_ARGS__
+#define CONFIG_WHOAMI 1
+#define ENABLE_WHOAMI 1
+#define IF_WHOAMI(...) __VA_ARGS__
+#define IF_NOT_WHOAMI(...)
 #define CONFIG_YES 1
 #define ENABLE_YES 1
 #define IF_YES(...) __VA_ARGS__
@@ -1476,18 +1476,18 @@
 /*
  * Linux Ext2 FS Progs
  */
-#define CONFIG_CHATTR 1
-#define ENABLE_CHATTR 1
-#define IF_CHATTR(...) __VA_ARGS__
-#define IF_NOT_CHATTR(...)
+#undef CONFIG_CHATTR
+#define ENABLE_CHATTR 0
+#define IF_CHATTR(...)
+#define IF_NOT_CHATTR(...) __VA_ARGS__
 #undef CONFIG_FSCK
 #define ENABLE_FSCK 0
 #define IF_FSCK(...)
 #define IF_NOT_FSCK(...) __VA_ARGS__
-#define CONFIG_LSATTR 1
-#define ENABLE_LSATTR 1
-#define IF_LSATTR(...) __VA_ARGS__
-#define IF_NOT_LSATTR(...)
+#undef CONFIG_LSATTR
+#define ENABLE_LSATTR 0
+#define IF_LSATTR(...)
+#define IF_NOT_LSATTR(...) __VA_ARGS__
 
 /*
  * Linux Module Utilities
@@ -1852,10 +1852,10 @@
 #define ENABLE_FEATURE_MOUNT_NFS 0
 #define IF_FEATURE_MOUNT_NFS(...)
 #define IF_NOT_FEATURE_MOUNT_NFS(...) __VA_ARGS__
-#undef CONFIG_FEATURE_MOUNT_CIFS
-#define ENABLE_FEATURE_MOUNT_CIFS 0
-#define IF_FEATURE_MOUNT_CIFS(...)
-#define IF_NOT_FEATURE_MOUNT_CIFS(...) __VA_ARGS__
+#define CONFIG_FEATURE_MOUNT_CIFS 1
+#define ENABLE_FEATURE_MOUNT_CIFS 1
+#define IF_FEATURE_MOUNT_CIFS(...) __VA_ARGS__
+#define IF_NOT_FEATURE_MOUNT_CIFS(...)
 #define CONFIG_FEATURE_MOUNT_FLAGS 1
 #define ENABLE_FEATURE_MOUNT_FLAGS 1
 #define IF_FEATURE_MOUNT_FLAGS(...) __VA_ARGS__
@@ -2448,22 +2448,22 @@
 #define ENABLE_FEATURE_INETD_RPC 0
 #define IF_FEATURE_INETD_RPC(...)
 #define IF_NOT_FEATURE_INETD_RPC(...) __VA_ARGS__
-#undef CONFIG_IP
-#define ENABLE_IP 0
-#define IF_IP(...)
-#define IF_NOT_IP(...) __VA_ARGS__
-#undef CONFIG_FEATURE_IP_ADDRESS
-#define ENABLE_FEATURE_IP_ADDRESS 0
-#define IF_FEATURE_IP_ADDRESS(...)
-#define IF_NOT_FEATURE_IP_ADDRESS(...) __VA_ARGS__
-#undef CONFIG_FEATURE_IP_LINK
-#define ENABLE_FEATURE_IP_LINK 0
-#define IF_FEATURE_IP_LINK(...)
-#define IF_NOT_FEATURE_IP_LINK(...) __VA_ARGS__
-#undef CONFIG_FEATURE_IP_ROUTE
-#define ENABLE_FEATURE_IP_ROUTE 0
-#define IF_FEATURE_IP_ROUTE(...)
-#define IF_NOT_FEATURE_IP_ROUTE(...) __VA_ARGS__
+#define CONFIG_IP 1
+#define ENABLE_IP 1
+#define IF_IP(...) __VA_ARGS__
+#define IF_NOT_IP(...)
+#define CONFIG_FEATURE_IP_ADDRESS 1
+#define ENABLE_FEATURE_IP_ADDRESS 1
+#define IF_FEATURE_IP_ADDRESS(...) __VA_ARGS__
+#define IF_NOT_FEATURE_IP_ADDRESS(...)
+#define CONFIG_FEATURE_IP_LINK 1
+#define ENABLE_FEATURE_IP_LINK 1
+#define IF_FEATURE_IP_LINK(...) __VA_ARGS__
+#define IF_NOT_FEATURE_IP_LINK(...)
+#define CONFIG_FEATURE_IP_ROUTE 1
+#define ENABLE_FEATURE_IP_ROUTE 1
+#define IF_FEATURE_IP_ROUTE(...) __VA_ARGS__
+#define IF_NOT_FEATURE_IP_ROUTE(...)
 #undef CONFIG_FEATURE_IP_TUNNEL
 #define ENABLE_FEATURE_IP_TUNNEL 0
 #define IF_FEATURE_IP_TUNNEL(...)
@@ -2544,10 +2544,10 @@
 #define ENABLE_FEATURE_NETSTAT_PRG 1
 #define IF_FEATURE_NETSTAT_PRG(...) __VA_ARGS__
 #define IF_NOT_FEATURE_NETSTAT_PRG(...)
-#undef CONFIG_NSLOOKUP
-#define ENABLE_NSLOOKUP 0
-#define IF_NSLOOKUP(...)
-#define IF_NOT_NSLOOKUP(...) __VA_ARGS__
+#define CONFIG_NSLOOKUP 1
+#define ENABLE_NSLOOKUP 1
+#define IF_NSLOOKUP(...) __VA_ARGS__
+#define IF_NOT_NSLOOKUP(...)
 #define CONFIG_PING 1
 #define ENABLE_PING 1
 #define IF_PING(...) __VA_ARGS__

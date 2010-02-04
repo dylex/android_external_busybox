@@ -12,7 +12,7 @@
 #include <net/if.h>
 #include <net/if_packet.h>
 #include <netpacket/packet.h>
-#include <net/ethernet.h>
+#include <linux/if_ether.h>
 
 #include "ip_common.h"  /* #include "libbb.h" is inside */
 #include "rt_names.h"

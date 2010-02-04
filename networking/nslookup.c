@@ -12,7 +12,14 @@
  */
 
 #include <resolv.h>
+#include <netinet/in.h>
+#include <arpa_nameser.h>
+#include <resolv_private.h>
 #include "libbb.h"
+
+int		res_init(void);
+#undef _res
+struct __res_state _res;
 
 /*
  * I'm only implementing non-interactive mode;

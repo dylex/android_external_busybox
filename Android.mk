@@ -10,11 +10,14 @@ LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/include $(LOCAL_PATH)/libbb \
 	external/clearsilver \
-	external/clearsilver/util/regex
+	external/clearsilver/util/regex \
+	bionic/libc/private \
+	libc/kernel/common
 
 LOCAL_CFLAGS := \
 	-Werror=implicit \
 	-DNDEBUG \
+	-DANDROID_CHANGES \
 	-include include/autoconf.h \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
 	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
