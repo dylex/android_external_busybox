@@ -11,10 +11,10 @@
 /bin/cal
 /bin/cat
 /bin/catv
-/bin/chattr
 /bin/chgrp
 /bin/chmod
 /bin/chown
+/sbin/chroot
 /bin/cksum
 /bin/clear
 /bin/cmp
@@ -55,6 +55,7 @@
 /sbin/ifconfig
 /sbin/insmod
 /bin/install
+/bin/ip
 /bin/kill
 /bin/killall
 /bin/killall5
@@ -63,7 +64,6 @@
 /bin/ln
 /sbin/losetup
 /bin/ls
-/bin/lsattr
 /sbin/lsmod
 /bin/lzop
 /bin/lzopcat
@@ -82,6 +82,7 @@
 /bin/netstat
 /bin/nice
 /bin/nohup
+/bin/nslookup
 /bin/od
 /bin/patch
 /bin/pgrep
@@ -148,6 +149,7 @@
 /bin/wc
 /bin/wget
 /bin/which
+/bin/whoami
 /bin/xargs
 /bin/yes
 /bin/zcat
