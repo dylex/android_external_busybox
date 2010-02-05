@@ -12,7 +12,11 @@
 #include <net/if.h>
 #include <net/if_packet.h>
 #include <netpacket/packet.h>
+#ifdef __BIONIC__
 #include <linux/if_ether.h>
+#else
+#include <net/ethernet.h>
+#endif
 
 #include "ip_common.h"  /* #include "libbb.h" is inside */
 #include "rt_names.h"

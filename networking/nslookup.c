@@ -12,14 +12,17 @@
  */
 
 #include <resolv.h>
+#include "libbb.h"
+
+#ifdef __BIONIC__
 #include <netinet/in.h>
 #include <arpa_nameser.h>
 #include <resolv_private.h>
-#include "libbb.h"
 
-int		res_init(void);
 #undef _res
-struct __res_state _res;
+extern struct __res_state _nres;
+#define _res _nres
+#endif
 
 /*
  * I'm only implementing non-interactive mode;
