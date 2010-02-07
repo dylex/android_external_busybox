@@ -229,8 +229,16 @@ int tail_main(int argc, char **argv)
 				if (seen < count) {
 					/* We need to skip a few more bytes/lines */
 					if (COUNT_BYTES) {
-						nwrite -= (count - seen);
-						seen = count;
+						if (nwrite > count - seen)
+						{
+							nwrite -= (count - seen);
+							seen = count;
+						}
+						else
+						{
+							seen += nwrite;
+							nwrite = 0;
+						}
 					} else {
 						char *s = buf;
 						do {
