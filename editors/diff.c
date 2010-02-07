@@ -672,7 +672,12 @@ static int diffreg(char *file[2])
 		 * When we meet non-seekable file, we must make a temp copy.
 		 */
 		if (lseek(fd, 0, SEEK_SET) == -1 && errno == ESPIPE) {
-			char name[] = "/tmp/difXXXXXX";
+			/* really should use $TMPDIR, but not usually set on android anyway */
+			char name[] = 
+#ifdef __BIONIC__
+				"/data/local"
+#endif
+				"/tmp/difXXXXXX";
 			int fd_tmp = mkstemp(name);
 			if (fd_tmp < 0)
 				bb_perror_msg_and_die("mkstemp");
