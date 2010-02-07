@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.16.0android
  */
-#define AUTOCONF_TIMESTAMP "2010-02-07 01:36:39 EST"
+#define AUTOCONF_TIMESTAMP "2010-02-07 03:27:23 EST"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -836,10 +836,10 @@
 #define ENABLE_TAIL 1
 #define IF_TAIL(...) __VA_ARGS__
 #define IF_NOT_TAIL(...)
-#undef CONFIG_FEATURE_FANCY_TAIL
-#define ENABLE_FEATURE_FANCY_TAIL 0
-#define IF_FEATURE_FANCY_TAIL(...)
-#define IF_NOT_FEATURE_FANCY_TAIL(...) __VA_ARGS__
+#define CONFIG_FEATURE_FANCY_TAIL 1
+#define ENABLE_FEATURE_FANCY_TAIL 1
+#define IF_FEATURE_FANCY_TAIL(...) __VA_ARGS__
+#define IF_NOT_FEATURE_FANCY_TAIL(...)
 #define CONFIG_TEE 1
 #define ENABLE_TEE 1
 #define IF_TEE(...) __VA_ARGS__
@@ -864,10 +864,10 @@
 #define ENABLE_TR 1
 #define IF_TR(...) __VA_ARGS__
 #define IF_NOT_TR(...)
-#undef CONFIG_FEATURE_TR_CLASSES
-#define ENABLE_FEATURE_TR_CLASSES 0
-#define IF_FEATURE_TR_CLASSES(...)
-#define IF_NOT_FEATURE_TR_CLASSES(...) __VA_ARGS__
+#define CONFIG_FEATURE_TR_CLASSES 1
+#define ENABLE_FEATURE_TR_CLASSES 1
+#define IF_FEATURE_TR_CLASSES(...) __VA_ARGS__
+#define IF_NOT_FEATURE_TR_CLASSES(...)
 #undef CONFIG_FEATURE_TR_EQUIV
 #define ENABLE_FEATURE_TR_EQUIV 0
 #define IF_FEATURE_TR_EQUIV(...)
