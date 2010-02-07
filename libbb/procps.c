@@ -110,6 +110,10 @@ static procps_status_t* FAST_FUNC alloc_procps_scan(void)
 void FAST_FUNC free_procps_scan(procps_status_t* sp)
 {
 	closedir(sp->dir);
+#if ENABLE_FEATURE_SHOW_THREADS
+	if (sp->task_dir)
+		closedir(sp->task_dir);
+#endif
 	free(sp->argv0);
 	free(sp->exe);
 	IF_SELINUX(free(sp->context);)
@@ -189,14 +193,35 @@ procps_status_t* FAST_FUNC procps_scan(procps_status_t* sp, int flags)
 		sp = alloc_procps_scan();
 
 	for (;;) {
+#if ENABLE_FEATURE_SHOW_THREADS
+		if ((flags & PSSCAN_TASKS) && sp->task_dir) {
+			entry = readdir(sp->task_dir);
+			if (entry)
+				goto got_entry;
+			closedir(sp->task_dir);
+			sp->task_dir = NULL;
+		}
+#endif
 		entry = readdir(sp->dir);
 		if (entry == NULL) {
 			free_procps_scan(sp);
 			return NULL;
 		}
+ IF_FEATURE_SHOW_THREADS(got_entry:)
 		pid = bb_strtou(entry->d_name, NULL, 10);
 		if (errno)
 			continue;
+#if ENABLE_FEATURE_SHOW_THREADS
+		if ((flags & PSSCAN_TASKS) && !sp->task_dir) {
+			/* We found another /proc/PID. Do not use it,
+			 * there will be /proc/PID/task/PID (same PID!),
+			 * so just go ahead and dive into /proc/PID/task. */
+			char task_dir[sizeof("/proc/%u/task") + sizeof(int)*3];
+			sprintf(task_dir, "/proc/%u/task", pid);
+			sp->task_dir = xopendir(task_dir);
+			continue;
+		}
+#endif
 
 		/* After this point we can:
 		 * "break": stop parsing, return the data
@@ -473,16 +498,19 @@ procps_status_t* FAST_FUNC procps_scan(procps_status_t* sp, int flags)
 
 void FAST_FUNC read_cmdline(char *buf, int col, unsigned pid, const char *comm)
 {
-	ssize_t sz;
+	int sz;
 	char filename[sizeof("/proc//cmdline") + sizeof(int)*3];
 
 	sprintf(filename, "/proc/%u/cmdline", pid);
-	sz = open_read_close(filename, buf, col);
+	sz = open_read_close(filename, buf, col - 1);
 	if (sz > 0) {
 		buf[sz] = '\0';
-		while (--sz >= 0)
+		while (--sz >= 0 && buf[sz] == '\0')
+			continue;
+		do {
 			if ((unsigned char)(buf[sz]) < ' ')
 				buf[sz] = ' ';
+		} while (--sz >= 0);
 	} else {
 		snprintf(buf, col, "[%s]", comm);
 	}

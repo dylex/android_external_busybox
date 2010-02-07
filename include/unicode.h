@@ -5,29 +5,42 @@
 #ifndef UNICODE_H
 #define UNICODE_H 1
 
+enum {
+	UNICODE_UNKNOWN = 0,
+	UNICODE_OFF = 1,
+	UNICODE_ON = 2,
+};
+
 #if !ENABLE_FEATURE_ASSUME_UNICODE
 
-# define bb_mbstrlen(string) strlen(string)
-# define check_unicode_in_env() ((void)0)
+# define unicode_strlen(string) strlen(string)
+# define unicode_scrlen(string) TODO
+# define unicode_status UNICODE_OFF
+# define init_unicode() ((void)0)
 
 #else
 
-size_t bb_mbstrlen(const char *string) FAST_FUNC;
+size_t FAST_FUNC unicode_strlen(const char *string);
+char* FAST_FUNC unicode_cut_nchars(unsigned width, const char *src);
+unsigned FAST_FUNC unicode_padding_to_width(unsigned width, const char *src);
 
 # if ENABLE_LOCALE_SUPPORT
 
 #  include <wchar.h>
 #  include <wctype.h>
-#  define check_unicode_in_env() ((void)0)
+extern uint8_t unicode_status;
+void init_unicode(void) FAST_FUNC;
 
 # else
 
-/* Crude "locale support" which knows only C and Unicode locales */
+/* Homegrown Unicode support. It knows only C and Unicode locales. */
 
 #  if !ENABLE_FEATURE_CHECK_UNICODE_IN_ENV
-#   define check_unicode_in_env() ((void)0)
+#   define unicode_status UNICODE_ON
+#   define init_unicode() ((void)0)
 #  else
-void check_unicode_in_env(void) FAST_FUNC;
+extern uint8_t unicode_status;
+void init_unicode(void) FAST_FUNC;
 #  endif
 
 #  undef MB_CUR_MAX
@@ -42,6 +55,7 @@ void check_unicode_in_env(void) FAST_FUNC;
 #  define iswspace  bb_iswspace
 #  define iswalnum  bb_iswalnum
 #  define iswpunct  bb_iswpunct
+#  define wcwidth   bb_wcwidth
 
 typedef int32_t wint_t;
 typedef struct {
@@ -54,6 +68,7 @@ size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps) FAST_FUNC;
 int iswspace(wint_t wc) FAST_FUNC;
 int iswalnum(wint_t wc) FAST_FUNC;
 int iswpunct(wint_t wc) FAST_FUNC;
+
 
 # endif /* !LOCALE_SUPPORT */
 

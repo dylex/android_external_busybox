@@ -58,7 +58,7 @@ static void show_progress(mtd_info_t *meminfo, erase_info_t *erase)
 		erase->start,
 		(unsigned) ((unsigned long long) erase->start * 100 / meminfo->size)
 	);
-	fflush(stdout);
+	fflush_all();
 }
 
 int flash_eraseall_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;

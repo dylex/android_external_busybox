@@ -80,12 +80,14 @@ static int read_config(const char *path);
 static char *gather_options_str(char *opts, const char *append)
 {
 	/* Speed-optimized. We call gather_options_str many times. */
-	if (opts == NULL) {
-		opts = xstrdup(append);
-	} else {
-		int optlen = strlen(opts);
-		opts = xrealloc(opts, optlen + strlen(append) + 2);
-		sprintf(opts + optlen, " %s", append);
+	if (append) {
+		if (opts == NULL) {
+			opts = xstrdup(append);
+		} else {
+			int optlen = strlen(opts);
+			opts = xrealloc(opts, optlen + strlen(append) + 2);
+			sprintf(opts + optlen, " %s", append);
+		}
 	}
 	return opts;
 }
@@ -290,6 +292,8 @@ static int do_modprobe(struct module_entry *m)
 			options = gather_options_str(options, G.cmdline_mopts);
 		rc = bb_init_module(fn, options);
 		DBG("loaded %s '%s', rc:%d", fn, options, rc);
+		if (rc == EEXIST)
+			rc = 0;
 		free(options);
 		if (rc) {
 			bb_error_msg("failed to load module %s (%s): %s",
@@ -373,7 +377,7 @@ int modprobe_main(int argc UNUSED_PARAM, char **argv)
 			 * "If name is NULL, all unused modules marked
 			 * autoclean will be removed".
 			 */
-			if (bb_delete_module(NULL, O_NONBLOCK|O_EXCL) != 0)
+			if (bb_delete_module(NULL, O_NONBLOCK | O_EXCL) != 0)
 				bb_perror_msg_and_die("rmmod");
 		}
 		return EXIT_SUCCESS;

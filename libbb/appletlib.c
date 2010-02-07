@@ -27,8 +27,14 @@
  * FEATURE_INSTALLER or FEATURE_SUID will still link printf routines in. :(
  */
 
-#include <assert.h>
 #include "busybox.h"
+#include <assert.h>
+#include <malloc.h>
+#ifdef __BIONIC__
+#include <asm/page.h>
+#else
+#include <sys/user.h> /* PAGE_SIZE */
+#endif
 
 
 /* Declare <applet>_main() */
@@ -116,7 +122,8 @@ void FAST_FUNC bb_show_usage(void)
 			full_write2_str(p);
 			full_write2_str("\n\n");
 		}
-		dealloc_usage_messages((char*)usage_string);
+		if (ENABLE_FEATURE_CLEAN_UP)
+			dealloc_usage_messages((char*)usage_string);
 #else
 		const char *p;
 		const char *usage_string = p = unpack_usage_messages();
@@ -129,7 +136,7 @@ void FAST_FUNC bb_show_usage(void)
 			ap--;
 		}
 		full_write2_str(bb_banner);
-		full_write2_str(" multi-call binary\n");
+		full_write2_str(" multi-call binary.\n");
 		if (*p == '\b')
 			full_write2_str("\nNo help available.\n\n");
 		else {
@@ -139,7 +146,8 @@ void FAST_FUNC bb_show_usage(void)
 			full_write2_str(p);
 			full_write2_str("\n\n");
 		}
-		dealloc_usage_messages((char*)usage_string);
+		if (ENABLE_FEATURE_CLEAN_UP)
+			dealloc_usage_messages((char*)usage_string);
 #endif
 	}
 	xfunc_die();
@@ -643,9 +651,10 @@ static int busybox_main(char **argv)
 		}
 
 		dup2(1, 2);
-		full_write2_str(bb_banner); /* reuse const string... */
-		full_write2_str(" multi-call binary\n"
-		       "Copyright (C) 1998-2008 Erik Andersen, Rob Landley, Denys Vlasenko\n"
+		full_write2_str(bb_banner); /* reuse const string */
+		full_write2_str(" multi-call binary.\n"); /* reuse */
+		full_write2_str(
+		       "Copyright (C) 1998-2009 Erik Andersen, Rob Landley, Denys Vlasenko\n"
 		       "and others. Licensed under GPLv2.\n"
 		       "See source distribution for full notice.\n"
 		       "\n"
@@ -655,7 +664,7 @@ static int busybox_main(char **argv)
 		       "\tBusyBox is a multi-call binary that combines many common Unix\n"
 		       "\tutilities into a single executable.  Most people will create a\n"
 		       "\tlink to busybox for each function they wish to use and BusyBox\n"
-		       "\twill act like whatever it was invoked as!\n"
+		       "\twill act like whatever it was invoked as.\n"
 		       "\n"
 		       "Currently defined functions:\n");
 		col = 0;
@@ -760,6 +769,24 @@ int lbb_main(char **argv)
 int main(int argc UNUSED_PARAM, char **argv)
 #endif
 {
+	/* Tweak malloc for reduced memory consumption */
+#ifndef PAGE_SIZE
+# define PAGE_SIZE (4*1024) /* guess */
+#endif
+#ifdef M_TRIM_THRESHOLD
+	/* M_TRIM_THRESHOLD is the maximum amount of freed top-most memory
+	 * to keep before releasing to the OS
+	 * Default is way too big: 256k
+	 */
+	mallopt(M_TRIM_THRESHOLD, 2 * PAGE_SIZE);
+#endif
+#ifdef M_MMAP_THRESHOLD
+	/* M_MMAP_THRESHOLD is the request size threshold for using mmap()
+	 * Default is too big: 256k
+	 */
+	mallopt(M_MMAP_THRESHOLD, 8 * PAGE_SIZE - 256);
+#endif
+
 #if defined(SINGLE_APPLET_MAIN)
 	/* Only one applet is selected by the user! */
 	/* applet_names in this case is just "applet\0\0" */

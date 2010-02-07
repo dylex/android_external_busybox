@@ -17,10 +17,10 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include "libbb.h"
+/* After libbb.h, since it needs sys/types.h on some systems */
 #include <sys/utsname.h>
 #include <fnmatch.h>
-
-#include "libbb.h"
 
 #define MAX_OPT_DEPTH 10
 #define EUNBALBRACK 10001
@@ -522,7 +522,7 @@ static int FAST_FUNC dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 	bb_error_msg("no dhcp clients found");
 	return 0;
 }
-#elif ENABLE_APP_UDHCPC
+#elif ENABLE_UDHCPC
 static int FAST_FUNC dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 {
 #if ENABLE_FEATURE_IFUPDOWN_IP
@@ -569,7 +569,7 @@ static int FAST_FUNC dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 	result += static_down(ifd, exec);
 	return ((result == 3) ? 3 : 0);
 }
-#elif ENABLE_APP_UDHCPC
+#elif ENABLE_UDHCPC
 static int FAST_FUNC dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 {
 	int result;
@@ -644,6 +644,9 @@ static const struct address_family_t addr_inet = {
 
 #endif	/* if ENABLE_FEATURE_IFUPDOWN_IPV4 */
 
+/* Returns pointer to the next word, or NULL.
+ * In 1st case, advances *buf to the word after this one.
+ */
 static char *next_word(char **buf)
 {
 	unsigned length;
@@ -663,7 +666,7 @@ static char *next_word(char **buf)
 	if (word[length] != '\0')
 		word[length++] = '\0';
 
-	*buf = word + length;
+	*buf = skip_whitespace(word + length);
 
 	return word;
 }
@@ -966,7 +969,7 @@ static int doit(char *str)
 		pid_t child;
 		int status;
 
-		fflush(NULL);
+		fflush_all();
 		child = vfork();
 		switch (child) {
 		case -1: /* failure */
@@ -1035,7 +1038,7 @@ static int popen2(FILE **in, FILE **out, char *command, char *param)
 	xpiped_pair(infd);
 	xpiped_pair(outfd);
 
-	fflush(NULL);
+	fflush_all();
 	pid = vfork();
 
 	switch (pid) {
@@ -1053,8 +1056,8 @@ static int popen2(FILE **in, FILE **out, char *command, char *param)
 	/* parent */
 	close(infd.rd);
 	close(outfd.wr);
-	*in = fdopen(infd.wr, "w");
-	*out = fdopen(outfd.rd, "r");
+	*in = xfdopen_for_write(infd.wr);
+	*out = xfdopen_for_read(outfd.rd);
 	return pid;
 }
 
@@ -1139,7 +1142,7 @@ static llist_t *read_iface_state(void)
 
 
 int ifupdown_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int ifupdown_main(int argc, char **argv)
+int ifupdown_main(int argc UNUSED_PARAM, char **argv)
 {
 	int (*cmds)(struct interface_defn_t *);
 	struct interfaces_file_t *defn;
@@ -1158,7 +1161,8 @@ int ifupdown_main(int argc, char **argv)
 	}
 
 	getopt32(argv, OPTION_STR, &interfaces);
-	if (argc - optind > 0) {
+	argv += optind;
+	if (argv[0]) {
 		if (DO_ALL) bb_show_usage();
 	} else {
 		if (!DO_ALL) bb_show_usage();
@@ -1172,7 +1176,7 @@ int ifupdown_main(int argc, char **argv)
 	if (DO_ALL) {
 		target_list = defn->autointerfaces;
 	} else {
-		llist_add_to_end(&target_list, argv[optind]);
+		llist_add_to_end(&target_list, argv[0]);
 	}
 
 	/* Update the interfaces */

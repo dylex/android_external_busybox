@@ -16,11 +16,17 @@
 
 /*
  * Usage and known bugs:
- * Terminal key codes are not extensive, and more will probably
- * need to be added. This version was created on Debian GNU/Linux 2.x.
+ * Terminal key codes are not extensive, more needs to be added.
+ * This version was created on Debian GNU/Linux 2.x.
  * Delete, Backspace, Home, End, and the arrow keys were tested
  * to work in an Xterm and console. Ctrl-A also works as Home.
  * Ctrl-E also works as End.
+ *
+ * The following readline-like commands are not implemented:
+ * ESC-b -- Move back one word
+ * ESC-f -- Move forward one word
+ * ESC-d -- Delete forward one word
+ * CTL-t -- Transpose two characters
  *
  * lineedit does not know that the terminal escape sequences do not
  * take up space on the screen. The redisplay code assumes, unless
@@ -64,11 +70,11 @@
 #if ENABLE_FEATURE_ASSUME_UNICODE
 # define BB_NUL L'\0'
 # define CHAR_T wchar_t
-# define BB_isspace(c) iswspace(c)
-# define BB_isalnum(c) iswalnum(c)
-# define BB_ispunct(c) iswpunct(c)
-# define BB_isprint(c) iswprint(c)
-/* this catches bugs */
+static bool BB_isspace(CHAR_T c) { return ((unsigned)c < 256 && isspace(c)); }
+# if ENABLE_FEATURE_EDITING_VI
+static bool BB_isalnum(CHAR_T c) { return ((unsigned)c < 256 && isalnum(c)); }
+# endif
+static bool BB_ispunct(CHAR_T c) { return ((unsigned)c < 256 && ispunct(c)); }
 # undef isspace
 # undef isalnum
 # undef ispunct
@@ -83,11 +89,6 @@
 # define BB_isspace(c) isspace(c)
 # define BB_isalnum(c) isalnum(c)
 # define BB_ispunct(c) ispunct(c)
-# if ENABLE_LOCALE_SUPPORT
-#  define BB_isprint(c) isprint(c)
-# else
-#  define BB_isprint(c) ((c) >= ' ' && (c) != ((unsigned char)'\233'))
-# endif
 #endif
 
 
@@ -114,7 +115,7 @@ struct lineedit_statics {
 	unsigned cmdedit_prmt_len; /* length of prompt (without colors etc) */
 
 	unsigned cursor;
-	int command_len; /* must be signed (^D returns -1 len) */
+	int command_len; /* must be signed */
 	/* signed maxsize: we want x in "if (x > S.maxsize)"
 	 * to _not_ be promoted to unsigned */
 	int maxsize;
@@ -140,6 +141,9 @@ struct lineedit_statics {
 	CHAR_T *delptr;
 	smallint newdelflag;     /* whether delbuf should be reused yet */
 	CHAR_T delbuf[DELBUFSIZ];  /* a place to store deleted characters */
+#endif
+#if ENABLE_FEATURE_EDITING_ASK_TERMINAL
+	smallint sent_ESC_br6n;
 #endif
 
 	/* Formerly these were big buffers on stack: */
@@ -370,25 +374,14 @@ static void input_backward(unsigned num)
 
 static void put_prompt(void)
 {
+	unsigned w;
+
 	out1str(cmdedit_prompt);
-	if (ENABLE_FEATURE_EDITING_ASK_TERMINAL) {
-		/* Ask terminal where is the cursor now.
-		 * lineedit_read_key handles response and corrects
-		 * our idea of current cursor position.
-		 * Testcase: run "echo -n long_line_long_line_long_line",
-		 * then type in a long, wrapping command and try to
-		 * delete it using backspace key.
-		 * Note: we print it _after_ prompt, because
-		 * prompt may contain CR. Example: PS1='\[\r\n\]\w '
-		 */
-		out1str("\033" "[6n");
-	}
+	fflush_all();
 	cursor = 0;
-	{
-		unsigned w = cmdedit_termw; /* volatile var */
-		cmdedit_y = cmdedit_prmt_len / w; /* new quasireal y */
-		cmdedit_x = cmdedit_prmt_len % w;
-	}
+	w = cmdedit_termw; /* read volatile var once */
+	cmdedit_y = cmdedit_prmt_len / w; /* new quasireal y */
+	cmdedit_x = cmdedit_prmt_len % w;
 }
 
 /* draw prompt, editor line, and clear tail */
@@ -885,7 +878,7 @@ static void showfiles(void)
 
 	/* find the longest file name - use that as the column width */
 	for (row = 0; row < nrows; row++) {
-		l = bb_mbstrlen(matches[row]);
+		l = unicode_strlen(matches[row]);
 		if (column_width < l)
 			column_width = l;
 	}
@@ -905,7 +898,7 @@ static void showfiles(void)
 
 		for (nc = 1; nc < ncols && n+nrows < nfiles; n += nrows, nc++) {
 			printf("%s%-*s", matches[n],
-				(int)(column_width - bb_mbstrlen(matches[n])), ""
+				(int)(column_width - unicode_strlen(matches[n])), ""
 			);
 		}
 		puts(matches[n]);
@@ -1302,24 +1295,10 @@ static void remember_in_history(char *str)
 #endif /* MAX_HISTORY */
 
 
+#if ENABLE_FEATURE_EDITING_VI
 /*
- * This function is used to grab a character buffer
- * from the input file descriptor and allows you to
- * a string with full command editing (sort of like
- * a mini readline).
- *
- * The following standard commands are not implemented:
- * ESC-b -- Move back one word
- * ESC-f -- Move forward one word
- * ESC-d -- Delete back one word
- * ESC-h -- Delete forward one word
- * CTL-t -- Transpose two characters
- *
- * Minimalist vi-style command line editing available if configured.
  * vi mode implemented 2005 by Paul Fox <pgf@foxharp.boston.ma.us>
  */
-
-#if ENABLE_FEATURE_EDITING_VI
 static void
 vi_Word_motion(int eat)
 {
@@ -1428,10 +1407,107 @@ vi_back_motion(void)
 }
 #endif
 
+/* Modelled after bash 4.0 behavior of Ctrl-<arrow> */
+static void ctrl_left(void)
+{
+	CHAR_T *command = command_ps;
+
+	while (1) {
+		CHAR_T c;
+
+		input_backward(1);
+		if (cursor == 0)
+			break;
+		c = command[cursor];
+		if (c != ' ' && !BB_ispunct(c)) {
+			/* we reached a "word" delimited by spaces/punct.
+			 * go to its beginning */
+			while (1) {
+				c = command[cursor - 1];
+				if (c == ' ' || BB_ispunct(c))
+					break;
+				input_backward(1);
+				if (cursor == 0)
+					break;
+			}
+			break;
+		}
+	}
+}
+static void ctrl_right(void)
+{
+	CHAR_T *command = command_ps;
+
+	while (1) {
+		CHAR_T c;
+
+		c = command[cursor];
+		if (c == BB_NUL)
+			break;
+		if (c != ' ' && !BB_ispunct(c)) {
+			/* we reached a "word" delimited by spaces/punct.
+			 * go to its end + 1 */
+			while (1) {
+				input_forward();
+				c = command[cursor];
+				if (c == BB_NUL || c == ' ' || BB_ispunct(c))
+					break;
+			}
+			break;
+		}
+		input_forward();
+	}
+}
+
 
 /*
  * read_line_input and its helpers
  */
+
+#if ENABLE_FEATURE_EDITING_ASK_TERMINAL
+static void ask_terminal(void)
+{
+	/* Ask terminal where is the cursor now.
+	 * lineedit_read_key handles response and corrects
+	 * our idea of current cursor position.
+	 * Testcase: run "echo -n long_line_long_line_long_line",
+	 * then type in a long, wrapping command and try to
+	 * delete it using backspace key.
+	 * Note: we print it _after_ prompt, because
+	 * prompt may contain CR. Example: PS1='\[\r\n\]\w '
+	 */
+	/* Problem: if there is buffered input on stdin,
+	 * the response will be delivered later,
+	 * possibly to an unsuspecting application.
+	 * Testcase: "sleep 1; busybox ash" + press and hold [Enter].
+	 * Result:
+	 * ~/srcdevel/bbox/fix/busybox.t4 #
+	 * ~/srcdevel/bbox/fix/busybox.t4 #
+	 * ^[[59;34~/srcdevel/bbox/fix/busybox.t4 #  <-- garbage
+	 * ~/srcdevel/bbox/fix/busybox.t4 #
+	 *
+	 * Checking for input with poll only makes the race narrower,
+	 * I still can trigger it. Strace:
+	 *
+	 * write(1, "~/srcdevel/bbox/fix/busybox.t4 # ", 33) = 33
+	 * poll([{fd=0, events=POLLIN}], 1, 0) = 0 (Timeout)  <-- no input exists
+	 * write(1, "\33[6n", 4) = 4  <-- send the ESC sequence, quick!
+	 * poll([{fd=0, events=POLLIN}], 1, 4294967295) = 1 ([{fd=0, revents=POLLIN}])
+	 * read(0, "\n", 1)      = 1  <-- oh crap, user's input got in first
+	 */
+	struct pollfd pfd;
+
+	pfd.fd = STDIN_FILENO;
+	pfd.events = POLLIN;
+	if (safe_poll(&pfd, 1, 0) == 0) {
+		S.sent_ESC_br6n = 1;
+		out1str("\033" "[6n");
+		fflush_all(); /* make terminal see it ASAP! */
+	}
+}
+#else
+#define ask_terminal() ((void)0)
+#endif
 
 #if !ENABLE_FEATURE_EDITING_FANCY_PROMPT
 static void parse_and_put_prompt(const char *prmt_ptr)
@@ -1566,7 +1642,7 @@ static void cmdedit_setwidth(unsigned w, int redraw_flg)
 		int new_y = (cursor + cmdedit_prmt_len) / w;
 		/* redraw */
 		redraw((new_y >= cmdedit_y ? new_y : cmdedit_y), command_len - cursor);
-		fflush(stdout);
+		fflush_all();
 	}
 }
 
@@ -1592,7 +1668,9 @@ static int lineedit_read_key(char *read_key_buffer)
 	pfd.fd = STDIN_FILENO;
 	pfd.events = POLLIN;
 	do {
+#if ENABLE_FEATURE_EDITING_ASK_TERMINAL || ENABLE_FEATURE_ASSUME_UNICODE
  poll_again:
+#endif
 		if (read_key_buffer[0] == 0) {
 			/* Wait for input. Can't just call read_key,
 			 * it returns at once if stdin
@@ -1601,19 +1679,25 @@ static int lineedit_read_key(char *read_key_buffer)
 		}
 		/* Note: read_key sets errno to 0 on success: */
 		ic = read_key(STDIN_FILENO, read_key_buffer);
-		if (ENABLE_FEATURE_EDITING_ASK_TERMINAL
-		 && (int32_t)ic == KEYCODE_CURSOR_POS
+
+#if ENABLE_FEATURE_EDITING_ASK_TERMINAL
+		if ((int32_t)ic == KEYCODE_CURSOR_POS
+		 && S.sent_ESC_br6n
 		) {
-			int col = ((ic >> 32) & 0x7fff) - 1;
-			if (col > cmdedit_prmt_len) {
-				cmdedit_x += (col - cmdedit_prmt_len);
-				while (cmdedit_x >= cmdedit_termw) {
-					cmdedit_x -= cmdedit_termw;
-					cmdedit_y++;
+			S.sent_ESC_br6n = 0;
+			if (cursor == 0) { /* otherwise it may be bogus */
+				int col = ((ic >> 32) & 0x7fff) - 1;
+				if (col > cmdedit_prmt_len) {
+					cmdedit_x += (col - cmdedit_prmt_len);
+					while (cmdedit_x >= cmdedit_termw) {
+						cmdedit_x -= cmdedit_termw;
+						cmdedit_y++;
+					}
 				}
 			}
 			goto poll_again;
 		}
+#endif
 
 #if ENABLE_FEATURE_ASSUME_UNICODE
 		{
@@ -1670,7 +1754,7 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 	) {
 		/* Happens when e.g. stty -echo was run before */
 		parse_and_put_prompt(prompt);
-		fflush(stdout);
+		/* fflush_all(); - done by parse_and_put_prompt */
 		if (fgets(command, maxsize, stdin) == NULL)
 			len = -1; /* EOF or error */
 		else
@@ -1679,7 +1763,7 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 		return len;
 	}
 
-	check_unicode_in_env();
+	init_unicode();
 
 // FIXME: audit & improve this
 	if (maxsize > MAX_LINELEN)
@@ -1744,8 +1828,9 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 	bb_error_msg("cur_history:%d cnt_history:%d", state->cur_history, state->cnt_history);
 #endif
 
-	/* Print out the command prompt */
+	/* Print out the command prompt, optionally ask where cursor is */
 	parse_and_put_prompt(prompt);
+	ask_terminal();
 
 	read_key_buffer[0] = 0;
 	while (1) {
@@ -1761,10 +1846,10 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 			VI_CMDMODE_BIT = 0x40000000,
 			/* 0x80000000 bit flags KEYCODE_xxx */
 		};
-		int32_t ic;
+		int32_t ic, ic_raw;
 
-		fflush(NULL);
-		ic = lineedit_read_key(read_key_buffer);
+		fflush_all();
+		ic = ic_raw = lineedit_read_key(read_key_buffer);
 
 #if ENABLE_FEATURE_EDITING_VI
 		newdelflag = 1;
@@ -1795,27 +1880,6 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 		vi_case('\x7f'|VI_CMDMODE_BIT:) /* DEL */
 			/* Control-b -- Move back one character */
 			input_backward(1);
-			break;
-		case CTRL('C'):
-		vi_case(CTRL('C')|VI_CMDMODE_BIT:)
-			/* Control-c -- stop gathering input */
-			goto_new_line();
-			command_len = 0;
-			break_out = -1; /* "do not append '\n'" */
-			break;
-		case CTRL('D'):
-			/* Control-d -- Delete one character, or exit
-			 * if the len=0 and no chars to delete */
-			if (command_len == 0) {
-				errno = 0;
-#if ENABLE_FEATURE_EDITING_VI
- prepare_to_die:
-#endif
-				/* to control stopped jobs */
-				break_out = command_len = -1;
-				break;
-			}
-			input_delete(0);
 			break;
 		case CTRL('E'):
 		vi_case('$'|VI_CMDMODE_BIT:)
@@ -1939,21 +2003,17 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 			/* fall through */
 		case 'd'|VI_CMDMODE_BIT: {
 			int nc, sc;
-			int prev_ic;
-
-			sc = cursor;
-			prev_ic = ic;
 
 			ic = lineedit_read_key(read_key_buffer);
 			if (errno) /* error */
 				goto prepare_to_die;
-
-			if ((ic | VI_CMDMODE_BIT) == prev_ic) {
-				/* "cc", "dd" */
+			if (ic == ic_raw) { /* "cc", "dd" */
 				input_backward(cursor);
 				goto clear_to_eol;
 				break;
 			}
+
+			sc = cursor;
 			switch (ic) {
 			case 'w':
 			case 'W':
@@ -2007,6 +2067,7 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 			put();
 			break;
 		case 'r'|VI_CMDMODE_BIT:
+//FIXME: unicode case?
 			ic = lineedit_read_key(read_key_buffer);
 			if (errno) /* error */
 				goto prepare_to_die;
@@ -2051,6 +2112,12 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 		case KEYCODE_LEFT:
 			input_backward(1);
 			break;
+		case KEYCODE_CTRL_LEFT:
+			ctrl_left();
+			break;
+		case KEYCODE_CTRL_RIGHT:
+			ctrl_right();
+			break;
 		case KEYCODE_DELETE:
 			input_delete(0);
 			break;
@@ -2062,6 +2129,31 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 			break;
 
 		default:
+			if (initial_settings.c_cc[VINTR] != 0
+			 && ic_raw == initial_settings.c_cc[VINTR]
+			) {
+				/* Ctrl-C (usually) - stop gathering input */
+				goto_new_line();
+				command_len = 0;
+				break_out = -1; /* "do not append '\n'" */
+				break;
+			}
+			if (initial_settings.c_cc[VEOF] != 0
+			 && ic_raw == initial_settings.c_cc[VEOF]
+			) {
+				/* Ctrl-D (usually) - delete one character,
+				 * or exit if len=0 and no chars to delete */
+				if (command_len == 0) {
+					errno = 0;
+#if ENABLE_FEATURE_EDITING_VI
+ prepare_to_die:
+#endif
+					break_out = command_len = -1;
+					break;
+				}
+				input_delete(0);
+				break;
+			}
 //			/* Control-V -- force insert of next char */
 //			if (c == CTRL('V')) {
 //				if (safe_read(STDIN_FILENO, &c, 1) < 1)
@@ -2076,7 +2168,7 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 			 || (ENABLE_FEATURE_ASSUME_UNICODE && ic >= VI_CMDMODE_BIT)
 			) {
 				/* If VI_CMDMODE_BIT is set, ic is >= 256
-				 * and command mode ignores unexpected chars.
+				 * and vi mode ignores unexpected chars.
 				 * Otherwise, we are here if ic is a
 				 * control char or an unhandled ESC sequence,
 				 * which is also ignored.
@@ -2108,17 +2200,31 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 				input_backward(cursor - sc);
 			}
 			break;
-		} /* switch (input_key) */
+		} /* switch (ic) */
 
 		if (break_out)
 			break;
 
 #if ENABLE_FEATURE_TAB_COMPLETION
-		ic &= ~VI_CMDMODE_BIT;
-		if (ic != '\t')
+		if (ic_raw != '\t')
 			lastWasTab = FALSE;
 #endif
 	} /* while (1) */
+
+#if ENABLE_FEATURE_EDITING_ASK_TERMINAL
+	if (S.sent_ESC_br6n) {
+		/* "sleep 1; busybox ash" + hold [Enter] to trigger.
+		 * We sent "ESC [ 6 n", but got '\n' first, and
+		 * KEYCODE_CURSOR_POS response is now buffered from terminal.
+		 * It's bad already and not much can be done with it
+		 * (it _will_ be visible for the next process to read stdin),
+		 * but without this delay it even shows up on the screen
+		 * as garbage because we restore echo settings with tcsetattr
+		 * before it comes in. UGLY!
+		 */
+		usleep(20*1000);
+	}
+#endif
 
 /* Stop bug catching using "command_must_not_be_used" trick */
 #undef command
@@ -2146,7 +2252,7 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 	tcsetattr_stdin_TCSANOW(&initial_settings);
 	/* restore SIGWINCH handler */
 	signal(SIGWINCH, previous_SIGWINCH_handler);
-	fflush(stdout);
+	fflush_all();
 
 	len = command_len;
 	DEINIT_S();
@@ -2160,7 +2266,7 @@ int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, li
 int FAST_FUNC read_line_input(const char* prompt, char* command, int maxsize)
 {
 	fputs(prompt, stdout);
-	fflush(stdout);
+	fflush_all();
 	fgets(command, maxsize, stdin);
 	return strlen(command);
 }

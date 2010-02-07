@@ -341,22 +341,24 @@ static int ask(const char *string, int def)
 	}
 	printf(def ? "%s (y/n)? " : "%s (n/y)? ", string);
 	for (;;) {
-		fflush(stdout);
+		fflush_all();
 		c = getchar();
 		if (c == EOF) {
 			if (!def)
 				errors_uncorrected = 1;
 			return def;
 		}
-		c = toupper(c);
-		if (c == 'Y') {
+		if (c == '\n')
+			break;
+		c |= 0x20; /* tolower */
+		if (c == 'y') {
 			def = 1;
 			break;
-		} else if (c == 'N') {
+		}
+		if (c == 'n') {
 			def = 0;
 			break;
-		} else if (c == ' ' || c == '\n')
-			break;
+		}
 	}
 	if (def)
 		printf("y\n");
@@ -563,7 +565,7 @@ static void write_superblock(void)
 
 	xlseek(dev_fd, BLOCK_SIZE, SEEK_SET);
 	if (BLOCK_SIZE != full_write(dev_fd, superblock_buffer, BLOCK_SIZE))
-		die("cannot write superblock");
+		die("can't write superblock");
 }
 
 static void write_tables(void)
@@ -571,11 +573,11 @@ static void write_tables(void)
 	write_superblock();
 
 	if (IMAPS * BLOCK_SIZE != write(dev_fd, inode_map, IMAPS * BLOCK_SIZE))
-		die("cannot write inode map");
+		die("can't write inode map");
 	if (ZMAPS * BLOCK_SIZE != write(dev_fd, zone_map, ZMAPS * BLOCK_SIZE))
-		die("cannot write zone map");
+		die("can't write zone map");
 	if (INODE_BUFFER_SIZE != write(dev_fd, inode_buffer, INODE_BUFFER_SIZE))
-		die("cannot write inodes");
+		die("can't write inodes");
 }
 
 static void get_dirsize(void)
@@ -605,7 +607,7 @@ static void read_superblock(void)
 {
 	xlseek(dev_fd, BLOCK_SIZE, SEEK_SET);
 	if (BLOCK_SIZE != full_read(dev_fd, superblock_buffer, BLOCK_SIZE))
-		die("cannot read superblock");
+		die("can't read superblock");
 	/* already initialized to:
 	namelen = 14;
 	dirsize = 16;
@@ -641,11 +643,11 @@ static void read_tables(void)
 	inode_count = xmalloc(INODES + 1);
 	zone_count = xmalloc(ZONES);
 	if (IMAPS * BLOCK_SIZE != read(dev_fd, inode_map, IMAPS * BLOCK_SIZE))
-		die("cannot read inode map");
+		die("can't read inode map");
 	if (ZMAPS * BLOCK_SIZE != read(dev_fd, zone_map, ZMAPS * BLOCK_SIZE))
-		die("cannot read zone map");
+		die("can't read zone map");
 	if (INODE_BUFFER_SIZE != read(dev_fd, inode_buffer, INODE_BUFFER_SIZE))
-		die("cannot read inodes");
+		die("can't read inodes");
 	if (NORM_FIRSTZONE != FIRSTZONE) {
 		printf("warning: firstzone!=norm_firstzone\n");
 		errors_uncorrected = 1;

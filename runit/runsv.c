@@ -311,7 +311,6 @@ static void startservice(struct svdir *s)
 	int p;
 	const char *arg[4];
 	char exitcode[sizeof(int)*3 + 2];
-	char sigcode[sizeof(int)*3 + 2];
 
 	if (s->state == S_FINISH) {
 /* Two arguments are given to ./finish. The first one is ./run exit code,
@@ -324,13 +323,12 @@ static void startservice(struct svdir *s)
 		arg[0] = "./finish";
 		arg[1] = "-1";
 		if (WIFEXITED(s->wstat)) {
-			sprintf(exitcode, "%u", (int) WEXITSTATUS(s->wstat));
+			*utoa_to_buf(WEXITSTATUS(s->wstat), exitcode, sizeof(exitcode)) = '\0';
 			arg[1] = exitcode;
 		}
 		//arg[2] = "0";
 		//if (WIFSIGNALED(s->wstat)) {
-			sprintf(sigcode, "%u", (int) WTERMSIG(s->wstat));
-			arg[2] = sigcode;
+			arg[2] = utoa(WTERMSIG(s->wstat));
 		//}
 		arg[3] = NULL;
 	} else {
@@ -465,9 +463,7 @@ int runsv_main(int argc UNUSED_PARAM, char **argv)
 
 	INIT_G();
 
-	if (!argv[1] || argv[2])
-		bb_show_usage();
-	dir = argv[1];
+	dir = single_argv(argv);
 
 	xpiped_pair(selfpipe);
 	close_on_exec_on(selfpipe.rd);

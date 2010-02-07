@@ -2,14 +2,14 @@
 # Copyright 2008 by Denys Vlasenko
 # Licensed under GPL v2, see file LICENSE for details.
 
-. testing.sh
+. ./testing.sh
 
 # ls -ln is showing date. Need to remove that, it's variable
 # sed: (1) "maj, min" -> "maj,min" (2) coalesce spaces
 # cut: remove date
-FILTER_LS="sed -e 's/,  */,/g' -e 's/  */ /g' | cut -d' ' -f 1-5,9-"
+FILTER_LS="grep -v '^total ' | sed -e 's/,  */,/g' -e 's/  */ /g' | cut -d' ' -f 1-5,9-"
 # cut: remove size+date
-FILTER_LS2="sed -e 's/,  */,/g' -e 's/  */ /g' | cut -d' ' -f 1-4,9-"
+FILTER_LS2="grep -v '^total ' | sed -e 's/,  */,/g' -e 's/  */ /g' | cut -d' ' -f 1-4,9-"
 
 # testing "test name" "options" "expected result" "file input" "stdin"
 

@@ -15,6 +15,7 @@ LOCAL_C_INCLUDES := \
 	libc/kernel/common
 
 LOCAL_CFLAGS := \
+	-std=gnu99 \
 	-Werror=implicit \
 	-DNDEBUG \
 	-DANDROID_CHANGES \

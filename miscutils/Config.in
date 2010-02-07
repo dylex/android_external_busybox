@@ -137,11 +137,11 @@ config FEATURE_CROND_D
 	  -d sets loglevel to 0 (most verbose) and directs all output to stderr.
 
 config FEATURE_CROND_CALL_SENDMAIL
-	bool "Using /usr/sbin/sendmail?"
+	bool "Report command output via email (using sendmail)"
 	default n
 	depends on CROND
 	help
-	  Support calling /usr/sbin/sendmail for send cmd outputs.
+	  Command output will be sent to corresponding user via email.
 
 config FEATURE_CROND_DIR
 	string "crond spool directory"
@@ -271,6 +271,13 @@ config FBSPLASH
 	  - commands for fifo:
 	    "NN" (ASCII decimal number) - percentage to show on progress bar
 	    "exit" - well you guessed it
+
+config FLASHCP
+	bool "flashcp"
+	default n
+	help
+	  The flashcp binary, inspired by mtd-utils as of git head 5eceb74f7.
+	  This utility is used to copy images into a MTD device.
 
 config FLASH_LOCK
 	bool "flash_lock"
@@ -611,6 +618,12 @@ config VOLNAME
 	default n
 	help
 	  Prints a CD-ROM volume name.
+
+config WALL
+	bool "wall"
+	default n
+	help
+	  Write a message to all users that are logged in.
 
 config WATCHDOG
 	bool "watchdog"

@@ -84,8 +84,16 @@
 #if ENABLE_HUSH_CASE
 # include <fnmatch.h>
 #endif
+
+#include "shell_common.h"
+#include "builtin_read.h"
 #include "math.h"
 #include "match.h"
+#if ENABLE_HUSH_RANDOM_SUPPORT
+# include "random.h"
+#else
+# define CLEAR_RANDOM_T(rnd) ((void)0)
+#endif
 #ifndef PIPE_BUF
 # define PIPE_BUF 4096  /* amount of buffering in a pipe */
 #endif
@@ -449,9 +457,9 @@ struct function {
 	char *name;
 	struct command *parent_cmd;
 	struct pipe *body;
-#if !BB_MMU
+# if !BB_MMU
 	char *body_as_string;
-#endif
+# endif
 };
 #endif
 
@@ -484,7 +492,11 @@ struct globals {
 	line_input_t *line_input_state;
 #endif
 	pid_t root_pid;
+	pid_t root_ppid;
 	pid_t last_bg_pid;
+#if ENABLE_HUSH_RANDOM_SUPPORT
+	random_t random_gen;
+#endif
 #if ENABLE_HUSH_JOB
 	int run_list_level;
 	int last_jobid;
@@ -511,6 +523,7 @@ struct globals {
 	smalluint last_exitcode;
 	/* are global_argv and global_argv[1..n] malloced? (note: not [0]) */
 	smalluint global_args_malloced;
+	smalluint inherited_set_is_saved;
 	/* how many non-NULL argv's we have. NB: $# + 1 */
 	int global_argc;
 	char **global_argv;
@@ -547,7 +560,7 @@ struct globals {
 	unsigned long memleak_value;
 	int debug_indent;
 #endif
-	char user_input_buf[ENABLE_FEATURE_EDITING ? BUFSIZ : 2];
+	char user_input_buf[ENABLE_FEATURE_EDITING ? CONFIG_FEATURE_EDITING_MAX_LEN : 2];
 };
 #define G (*ptr_to_globals)
 /* Not #defining name to G.name - this quickly gets unwieldy
@@ -577,6 +590,9 @@ static int builtin_local(char **argv) FAST_FUNC;
 #endif
 #if HUSH_DEBUG
 static int builtin_memleak(char **argv) FAST_FUNC;
+#endif
+#if ENABLE_PRINTF
+static int builtin_printf(char **argv) FAST_FUNC;
 #endif
 static int builtin_pwd(char **argv) FAST_FUNC;
 static int builtin_read(char **argv) FAST_FUNC;
@@ -665,6 +681,9 @@ static const struct built_in_command bltins1[] = {
 static const struct built_in_command bltins2[] = {
 	BLTIN("["        , builtin_test    , NULL),
 	BLTIN("echo"     , builtin_echo    , NULL),
+#if ENABLE_PRINTF
+	BLTIN("printf"   , builtin_printf  , NULL),
+#endif
 	BLTIN("pwd"      , builtin_pwd     , NULL),
 	BLTIN("test"     , builtin_test    , NULL),
 };
@@ -874,28 +893,6 @@ static void cmdedit_update_prompt(void);
 
 /* Utility functions
  */
-static int glob_needed(const char *s)
-{
-	while (*s) {
-		if (*s == '\\')
-			s++;
-		if (*s == '*' || *s == '[' || *s == '?')
-			return 1;
-		s++;
-	}
-	return 0;
-}
-
-static int is_well_formed_var_name(const char *s, char terminator)
-{
-	if (!s || !(isalpha(*s) || *s == '_'))
-		return 0;
-	s++;
-	while (isalnum(*s) || *s == '_')
-		s++;
-	return *s == terminator;
-}
-
 /* Replace each \x with x in place, return ptr past NUL. */
 static char *unbackslash(char *src)
 {
@@ -1047,7 +1044,8 @@ static void restore_G_args(save_arg_t *sv, char **argv)
  *
  * Trap handlers will execute even within trap handlers. (right?)
  *
- * User trap handlers are forgotten when subshell ("(cmd)") is entered.
+ * User trap handlers are forgotten when subshell ("(cmd)") is entered,
+ * except for handlers set to '' (empty string).
  *
  * If job control is off, backgrounded commands ("cmd &")
  * have SIGINT, SIGQUIT set to SIG_IGN.
@@ -1103,7 +1101,7 @@ static void restore_G_args(save_arg_t *sv, char **argv)
  * after [v]fork, if we plan to be a shell:
  *    unblock signals with special interactive handling
  *    (child shell is not interactive),
- *    unset all traps (note: regardless of child shell's type - {}, (), etc)
+ *    unset all traps except '' (note: regardless of child shell's type - {}, (), etc)
  * after [v]fork, if we plan to exec:
  *    POSIX says fork clears pending signal mask in child - no need to clear it.
  *    Restore blocked signal set to one inherited by shell just prior to exec.
@@ -1115,7 +1113,7 @@ static void restore_G_args(save_arg_t *sv, char **argv)
  * Note 2 (compat):
  * Standard says "When a subshell is entered, traps that are not being ignored
  * are set to the default actions". bash interprets it so that traps which
- * are set to "" (ignore) are NOT reset to defaults. We do the same.
+ * are set to '' (ignore) are NOT reset to defaults. We do the same.
  */
 enum {
 	SPECIAL_INTERACTIVE_SIGS = 0
@@ -1191,7 +1189,7 @@ static void hush_exit(int exitcode)
 	}
 
 #if ENABLE_HUSH_JOB
-	fflush(NULL); /* flush all streams */
+	fflush_all();
 	sigexit(- (exitcode & 0xff));
 #else
 	exit(exitcode);
@@ -1302,11 +1300,19 @@ static struct variable *get_local_var(const char *name)
 	return NULL;
 }
 
-static const char *get_local_var_value(const char *name)
+static const char* FAST_FUNC get_local_var_value(const char *name)
 {
 	struct variable **pp = get_ptr_to_local_var(name);
 	if (pp)
 		return strchr((*pp)->varstr, '=') + 1;
+	if (strcmp(name, "PPID") == 0)
+		return utoa(G.root_ppid);
+	// bash compat: UID? EUID?
+#if ENABLE_HUSH_RANDOM_SUPPORT
+	if (strcmp(name, "RANDOM") == 0) {
+		return utoa(next_random(&G.random_gen));
+	}
+#endif
 	return NULL;
 }
 
@@ -1497,7 +1503,7 @@ static void unset_vars(char **strings)
 #if ENABLE_SH_MATH_SUPPORT
 #define is_name(c)      ((c) == '_' || isalpha((unsigned char)(c)))
 #define is_in_name(c)   ((c) == '_' || isalnum((unsigned char)(c)))
-static char *endofname(const char *name)
+static char* FAST_FUNC endofname(const char *name)
 {
 	char *p;
 
@@ -1510,14 +1516,13 @@ static char *endofname(const char *name)
 	}
 	return p;
 }
-
-static void arith_set_local_var(const char *name, const char *val, int flags)
-{
-	/* arith code doesnt malloc space, so do it for it */
-	char *var = xasprintf("%s=%s", name, val);
-	set_local_var(var, flags, /*lvl:*/ 0, /*ro:*/ 0);
-}
 #endif
+
+static void FAST_FUNC set_local_var_from_halves(const char *name, const char *val)
+{
+	char *var = xasprintf("%s=%s", name, val);
+	set_local_var(var, /*flags:*/ 0, /*lvl:*/ 0, /*ro:*/ 0);
+}
 
 
 /*
@@ -1643,7 +1648,7 @@ static void get_user_input(struct in_str *i)
 		G.flag_SIGINT = 0;
 		/* buglet: SIGINT will not make new prompt to appear _at once_,
 		 * only after <Enter>. (^C will work) */
-		r = read_line_input(prompt_str, G.user_input_buf, BUFSIZ-1, G.line_input_state);
+		r = read_line_input(prompt_str, G.user_input_buf, CONFIG_FEATURE_EDITING_MAX_LEN-1, G.line_input_state);
 		/* catch *SIGINT* etc (^C is handled by read_line_input) */
 		check_and_run_traps(0);
 	} while (r == 0 || G.flag_SIGINT); /* repeat if ^C or SIGINT */
@@ -1656,7 +1661,7 @@ static void get_user_input(struct in_str *i)
 	do {
 		G.flag_SIGINT = 0;
 		fputs(prompt_str, stdout);
-		fflush(stdout);
+		fflush_all();
 		G.user_input_buf[0] = r = fgetc(i->file);
 		/*G.user_input_buf[1] = '\0'; - already is and never changed */
 //do we need check_and_run_traps(0)? (maybe only if stdin)
@@ -1833,13 +1838,31 @@ static void o_addblock_duplicate_backslash(o_string *o, const char *str, int len
 	}
 }
 
+#undef HUSH_BRACE_EXP
+/*
+ * HUSH_BRACE_EXP code needs corresponding quoting on variable expansion side.
+ * Currently, "v='{q,w}'; echo $v" erroneously expands braces in $v.
+ * Apparently, on unquoted $v bash still does globbing
+ * ("v='*.txt'; echo $v" prints all .txt files),
+ * but NOT brace expansion! Thus, there should be TWO independent
+ * quoting mechanisms on $v expansion side: one protects
+ * $v from brace expansion, and other additionally protects "$v" against globbing.
+ * We have only second one.
+ */
+
+#ifdef HUSH_BRACE_EXP
+# define MAYBE_BRACES "{}"
+#else
+# define MAYBE_BRACES ""
+#endif
+
 /* My analysis of quoting semantics tells me that state information
  * is associated with a destination, not a source.
  */
 static void o_addqchr(o_string *o, int ch)
 {
 	int sz = 1;
-	char *found = strchr("*?[\\", ch);
+	char *found = strchr("*?[\\" MAYBE_BRACES, ch);
 	if (found)
 		sz++;
 	o_grow_by(o, sz);
@@ -1855,7 +1878,7 @@ static void o_addqchr(o_string *o, int ch)
 static void o_addQchr(o_string *o, int ch)
 {
 	int sz = 1;
-	if (o->o_escape && strchr("*?[\\", ch)) {
+	if (o->o_escape && strchr("*?[\\" MAYBE_BRACES, ch)) {
 		sz++;
 		o->data[o->length] = '\\';
 		o->length++;
@@ -1875,7 +1898,7 @@ static void o_addQstr(o_string *o, const char *str, int len)
 	while (len) {
 		char ch;
 		int sz;
-		int ordinary_cnt = strcspn(str, "*?[\\");
+		int ordinary_cnt = strcspn(str, "*?[\\" MAYBE_BRACES);
 		if (ordinary_cnt > len) /* paranoia */
 			ordinary_cnt = len;
 		o_addblock(o, str, ordinary_cnt);
@@ -1886,7 +1909,7 @@ static void o_addQstr(o_string *o, const char *str, int len)
 
 		ch = *str++;
 		sz = 1;
-		if (ch) { /* it is necessarily one of "*?[\\" */
+		if (ch) { /* it is necessarily one of "*?[\\" MAYBE_BRACES */
 			sz++;
 			o->data[o->length] = '\\';
 			o->length++;
@@ -1980,8 +2003,223 @@ static int o_get_last_ptr(o_string *o, int n)
 	return ((int)(ptrdiff_t)list[n-1]) + string_start;
 }
 
-/* o_glob performs globbing on last list[], saving each result
- * as a new list[]. */
+#ifdef HUSH_BRACE_EXP
+/* There in a GNU extension, GLOB_BRACE, but it is not usable:
+ * first, it processes even {a} (no commas), second,
+ * I didn't manage to make it return strings when they don't match
+ * existing files. Need to re-implement it.
+ */
+
+/* Helper */
+static int glob_needed(const char *s)
+{
+	while (*s) {
+		if (*s == '\\') {
+			if (!s[1])
+				return 0;
+			s += 2;
+			continue;
+		}
+		if (*s == '*' || *s == '[' || *s == '?' || *s == '{')
+			return 1;
+		s++;
+	}
+	return 0;
+}
+/* Return pointer to next closing brace or to comma */
+static const char *next_brace_sub(const char *cp)
+{
+	unsigned depth = 0;
+	cp++;
+	while (*cp != '\0') {
+		if (*cp == '\\') {
+			if (*++cp == '\0')
+				break;
+			cp++;
+			continue;
+		}
+		 /*{*/ if ((*cp == '}' && depth-- == 0) || (*cp == ',' && depth == 0))
+			break;
+		if (*cp++ == '{') /*}*/
+			depth++;
+	}
+
+	return *cp != '\0' ? cp : NULL;
+}
+/* Recursive brace globber. Note: may garble pattern[]. */
+static int glob_brace(char *pattern, o_string *o, int n)
+{
+	char *new_pattern_buf;
+	const char *begin;
+	const char *next;
+	const char *rest;
+	const char *p;
+	size_t rest_len;
+
+	debug_printf_glob("glob_brace('%s')\n", pattern);
+
+	begin = pattern;
+	while (1) {
+		if (*begin == '\0')
+			goto simple_glob;
+		if (*begin == '{') /*}*/ {
+			/* Find the first sub-pattern and at the same time
+			 * find the rest after the closing brace */
+			next = next_brace_sub(begin);
+			if (next == NULL) {
+				/* An illegal expression */
+				goto simple_glob;
+			}
+			/*{*/ if (*next == '}') {
+				/* "{abc}" with no commas - illegal
+				 * brace expr, disregard and skip it */
+				begin = next + 1;
+				continue;
+			}
+			break;
+		}
+		if (*begin == '\\' && begin[1] != '\0')
+			begin++;
+		begin++;
+	}
+	debug_printf_glob("begin:%s\n", begin);
+	debug_printf_glob("next:%s\n", next);
+
+	/* Now find the end of the whole brace expression */
+	rest = next;
+	/*{*/ while (*rest != '}') {
+		rest = next_brace_sub(rest);
+		if (rest == NULL) {
+			/* An illegal expression */
+			goto simple_glob;
+		}
+		debug_printf_glob("rest:%s\n", rest);
+	}
+	rest_len = strlen(++rest) + 1;
+
+	/* We are sure the brace expression is well-formed */
+
+	/* Allocate working buffer large enough for our work */
+	new_pattern_buf = xmalloc(strlen(pattern));
+
+	/* We have a brace expression.  BEGIN points to the opening {,
+	 * NEXT points past the terminator of the first element, and REST
+	 * points past the final }.  We will accumulate result names from
+	 * recursive runs for each brace alternative in the buffer using
+	 * GLOB_APPEND.  */
+
+	p = begin + 1;
+	while (1) {
+		/* Construct the new glob expression */
+		memcpy(
+			mempcpy(
+				mempcpy(new_pattern_buf,
+					/* We know the prefix for all sub-patterns */
+					pattern, begin - pattern),
+				p, next - p),
+			rest, rest_len);
+
+		/* Note: glob_brace() may garble new_pattern_buf[].
+		 * That's why we re-copy prefix every time (1st memcpy above).
+		 */
+		n = glob_brace(new_pattern_buf, o, n);
+		/*{*/ if (*next == '}') {
+			/* We saw the last entry */
+			break;
+		}
+		p = next + 1;
+		next = next_brace_sub(next);
+	}
+	free(new_pattern_buf);
+	return n;
+
+ simple_glob:
+	{
+		int gr;
+		glob_t globdata;
+
+		memset(&globdata, 0, sizeof(globdata));
+		gr = glob(pattern, 0, NULL, &globdata);
+		debug_printf_glob("glob('%s'):%d\n", pattern, gr);
+		if (gr != 0) {
+			if (gr == GLOB_NOMATCH) {
+				globfree(&globdata);
+				/* NB: garbles parameter */
+				unbackslash(pattern);
+				o_addstr_with_NUL(o, pattern);
+				debug_printf_glob("glob pattern '%s' is literal\n", pattern);
+				return o_save_ptr_helper(o, n);
+			}
+			if (gr == GLOB_NOSPACE)
+				bb_error_msg_and_die(bb_msg_memory_exhausted);
+			/* GLOB_ABORTED? Only happens with GLOB_ERR flag,
+			 * but we didn't specify it. Paranoia again. */
+			bb_error_msg_and_die("glob error %d on '%s'", gr, pattern);
+		}
+		if (globdata.gl_pathv && globdata.gl_pathv[0]) {
+			char **argv = globdata.gl_pathv;
+			while (1) {
+				o_addstr_with_NUL(o, *argv);
+				n = o_save_ptr_helper(o, n);
+				argv++;
+				if (!*argv)
+					break;
+			}
+		}
+		globfree(&globdata);
+	}
+	return n;
+}
+/* Performs globbing on last list[],
+ * saving each result as a new list[].
+ */
+static int o_glob(o_string *o, int n)
+{
+	char *pattern, *copy;
+
+	debug_printf_glob("start o_glob: n:%d o->data:%p\n", n, o->data);
+	if (!o->data)
+		return o_save_ptr_helper(o, n);
+	pattern = o->data + o_get_last_ptr(o, n);
+	debug_printf_glob("glob pattern '%s'\n", pattern);
+	if (!glob_needed(pattern)) {
+		/* unbackslash last string in o in place, fix length */
+		o->length = unbackslash(pattern) - o->data;
+		debug_printf_glob("glob pattern '%s' is literal\n", pattern);
+		return o_save_ptr_helper(o, n);
+	}
+
+	copy = xstrdup(pattern);
+	/* "forget" pattern in o */
+	o->length = pattern - o->data;
+	n = glob_brace(copy, o, n);
+	free(copy);
+	if (DEBUG_GLOB)
+		debug_print_list("o_glob returning", o, n);
+	return n;
+}
+
+#else
+
+/* Helper */
+static int glob_needed(const char *s)
+{
+	while (*s) {
+		if (*s == '\\') {
+			if (!s[1])
+				return 0;
+			s += 2;
+			continue;
+		}
+		if (*s == '*' || *s == '[' || *s == '?')
+			return 1;
+		s++;
+	}
+	return 0;
+}
+/* Performs globbing on last list[],
+ * saving each result as a new list[].
+ */
 static int o_glob(o_string *o, int n)
 {
 	glob_t globdata;
@@ -1995,27 +2233,35 @@ static int o_glob(o_string *o, int n)
 	debug_printf_glob("glob pattern '%s'\n", pattern);
 	if (!glob_needed(pattern)) {
  literal:
+		/* unbackslash last string in o in place, fix length */
 		o->length = unbackslash(pattern) - o->data;
 		debug_printf_glob("glob pattern '%s' is literal\n", pattern);
 		return o_save_ptr_helper(o, n);
 	}
 
 	memset(&globdata, 0, sizeof(globdata));
+	/* Can't use GLOB_NOCHECK: it does not unescape the string.
+	 * If we glob "*.\*" and don't find anything, we need
+	 * to fall back to using literal "*.*", but GLOB_NOCHECK
+	 * will return "*.\*"!
+	 */
 	gr = glob(pattern, 0, NULL, &globdata);
 	debug_printf_glob("glob('%s'):%d\n", pattern, gr);
-	if (gr == GLOB_NOSPACE)
-		bb_error_msg_and_die("out of memory during glob");
-	if (gr == GLOB_NOMATCH) {
-		globfree(&globdata);
-		goto literal;
-	}
-	if (gr != 0) { /* GLOB_ABORTED ? */
-		/* TODO: testcase for bad glob pattern behavior */
-		bb_error_msg("glob(3) error %d on '%s'", gr, pattern);
+	if (gr != 0) {
+		if (gr == GLOB_NOMATCH) {
+			globfree(&globdata);
+			goto literal;
+		}
+		if (gr == GLOB_NOSPACE)
+			bb_error_msg_and_die(bb_msg_memory_exhausted);
+		/* GLOB_ABORTED? Only happens with GLOB_ERR flag,
+		 * but we didn't specify it. Paranoia again. */
+		bb_error_msg_and_die("glob error %d on '%s'", gr, pattern);
 	}
 	if (globdata.gl_pathv && globdata.gl_pathv[0]) {
 		char **argv = globdata.gl_pathv;
-		o->length = pattern - o->data; /* "forget" pattern */
+		/* "forget" pattern in o */
+		o->length = pattern - o->data;
 		while (1) {
 			o_addstr_with_NUL(o, *argv);
 			n = o_save_ptr_helper(o, n);
@@ -2029,6 +2275,8 @@ static int o_glob(o_string *o, int n)
 		debug_print_list("o_glob returning", o, n);
 	return n;
 }
+
+#endif
 
 /* If o->o_glob == 1, glob the string so far remembered.
  * Otherwise, just finish current list[] and start new */
@@ -2151,7 +2399,7 @@ static char *expand_pseudo_dquoted(const char *str)
  * to be filled). This routine is extremely tricky: has to deal with
  * variables/parameters with whitespace, $* and $@, and constructs like
  * 'echo -$*-'. If you play here, you must run testsuite afterwards! */
-static int expand_vars_to_list(o_string *output, int n, char *arg, char or_mask)
+static NOINLINE int expand_vars_to_list(o_string *output, int n, char *arg, char or_mask)
 {
 	/* or_mask is either 0 (normal case) or 0x80 -
 	 * expansion of right-hand side of assignment == 1-element expand.
@@ -2162,7 +2410,7 @@ static int expand_vars_to_list(o_string *output, int n, char *arg, char or_mask)
 
 	ored_ch = 0;
 
-	debug_printf_expand("expand_vars_to_list: arg '%s'\n", arg);
+	debug_printf_expand("expand_vars_to_list: arg:'%s' or_mask:%x\n", arg, or_mask);
 	debug_print_list("expand_vars_to_list", output, n);
 	n = o_save_ptr(output, n);
 	debug_print_list("expand_vars_to_list[0]", output, n);
@@ -2264,7 +2512,7 @@ static int expand_vars_to_list(o_string *output, int n, char *arg, char or_mask)
 			 * expanded result may need to be globbed
 			 * and $IFS-splitted */
 			debug_printf_subst("SUBST '%s' first_ch %x\n", arg, first_ch);
-			process_command_subs(&subst_result, arg);
+			G.last_exitcode = process_command_subs(&subst_result, arg);
 			debug_printf_subst("SUBST RES '%s'\n", subst_result.data);
 			val = subst_result.data;
 			goto store_val;
@@ -2282,7 +2530,7 @@ static int expand_vars_to_list(o_string *output, int n, char *arg, char or_mask)
 
 			exp_str = expand_pseudo_dquoted(arg);
 			hooks.lookupvar = get_local_var_value;
-			hooks.setvar = arith_set_local_var;
+			hooks.setvar = set_local_var_from_halves;
 			hooks.endofname = endofname;
 			res = arith(exp_str ? exp_str : arg, &errcode, &hooks);
 			free(exp_str);
@@ -2663,14 +2911,17 @@ static void re_execute_shell(char ***to_free, const char *s,
 		char *g_argv0, char **g_argv,
 		char **builtin_argv)
 {
-	char param_buf[sizeof("-$%x:%x:%x:%x:%x") + sizeof(unsigned) * 2];
+#define NOMMU_HACK_FMT ("-$%x:%x:%x:%x:%x:%llx" IF_HUSH_LOOPS(":%x"))
+	/* delims + 2 * (number of bytes in printed hex numbers) */
+	char param_buf[sizeof(NOMMU_HACK_FMT) + 2 * (sizeof(int)*6 + sizeof(long long)*1)];
 	char *heredoc_argv[4];
 	struct variable *cur;
-#if ENABLE_HUSH_FUNCTIONS
+# if ENABLE_HUSH_FUNCTIONS
 	struct function *funcp;
-#endif
+# endif
 	char **argv, **pp;
 	unsigned cnt;
+	unsigned long long empty_trap_mask;
 
 	if (!g_argv0) { /* heredoc */
 		argv = heredoc_argv;
@@ -2687,14 +2938,26 @@ static void re_execute_shell(char ***to_free, const char *s,
 	if (pp) while (*pp++)
 		cnt++;
 
-	sprintf(param_buf, "-$%x:%x:%x:%x" IF_HUSH_LOOPS(":%x")
+	empty_trap_mask = 0;
+	if (G.traps) {
+		int sig;
+		for (sig = 1; sig < NSIG; sig++) {
+			if (G.traps[sig] && !G.traps[sig][0])
+				empty_trap_mask |= 1LL << sig;
+		}
+	}
+
+	sprintf(param_buf, NOMMU_HACK_FMT
 			, (unsigned) G.root_pid
+			, (unsigned) G.root_ppid
 			, (unsigned) G.last_bg_pid
 			, (unsigned) G.last_exitcode
 			, cnt
+			, empty_trap_mask
 			IF_HUSH_LOOPS(, G.depth_of_loop)
 			);
-	/* 1:hush 2:-$<pid>:<pid>:<exitcode>:<depth> <vars...> <funcs...>
+#undef NOMMU_HACK_FMT
+	/* 1:hush 2:-$<pid>:<pid>:<exitcode>:<etc...> <vars...> <funcs...>
 	 * 3:-c 4:<cmd> 5:<arg0> <argN...> 6:NULL
 	 */
 	cnt += 6;
@@ -2702,10 +2965,10 @@ static void re_execute_shell(char ***to_free, const char *s,
 		if (!cur->flg_export || cur->flg_read_only)
 			cnt += 2;
 	}
-#if ENABLE_HUSH_FUNCTIONS
+# if ENABLE_HUSH_FUNCTIONS
 	for (funcp = G.top_func; funcp; funcp = funcp->next)
 		cnt += 3;
-#endif
+# endif
 	pp = g_argv;
 	while (*pp++)
 		cnt++;
@@ -2723,13 +2986,13 @@ static void re_execute_shell(char ***to_free, const char *s,
 			*pp++ = cur->varstr;
 		}
 	}
-#if ENABLE_HUSH_FUNCTIONS
+# if ENABLE_HUSH_FUNCTIONS
 	for (funcp = G.top_func; funcp; funcp = funcp->next) {
 		*pp++ = (char *) "-F";
 		*pp++ = funcp->name;
 		*pp++ = funcp->body_as_string;
 	}
-#endif
+# endif
 	/* We can pass activated traps here. Say, -Tnn:trap_string
 	 *
 	 * However, POSIX says that subshells reset signals with traps
@@ -2747,7 +3010,9 @@ static void re_execute_shell(char ***to_free, const char *s,
 	 * _inside_ group (just before echo 1), it works.
 	 *
 	 * I conclude it means we don't need to pass active traps here.
-	 * exec syscall below resets them to SIG_DFL for us.
+	 * Even if we would use signal handlers instead of signal masking
+	 * in order to implement trap handling,
+	 * exec syscall below resets signals to SIG_DFL for us.
 	 */
 	*pp++ = (char *) "-c";
 	*pp++ = (char *) s;
@@ -3196,7 +3461,7 @@ static void exec_function(char ***to_free,
 	G.global_argc = n;
 	/* On MMU, funcp->body is always non-NULL */
 	n = run_list(funcp->body);
-	fflush(NULL);
+	fflush_all();
 	_exit(n);
 # else
 	re_execute_shell(to_free,
@@ -3218,9 +3483,9 @@ static int run_function(const struct function *funcp, char **argv)
 	/* "we are in function, ok to use return" */
 	sv_flg = G.flag_return_in_progress;
 	G.flag_return_in_progress = -1;
-#if ENABLE_HUSH_LOCAL
+# if ENABLE_HUSH_LOCAL
 	G.func_nest_level++;
-#endif
+# endif
 
 	/* On MMU, funcp->body is always non-NULL */
 # if !BB_MMU
@@ -3234,7 +3499,7 @@ static int run_function(const struct function *funcp, char **argv)
 		rc = run_list(funcp->body);
 	}
 
-#if ENABLE_HUSH_LOCAL
+# if ENABLE_HUSH_LOCAL
 	{
 		struct variable *var;
 		struct variable **var_pp;
@@ -3257,7 +3522,7 @@ static int run_function(const struct function *funcp, char **argv)
 		}
 		G.func_nest_level--;
 	}
-#endif
+# endif
 	G.flag_return_in_progress = sv_flg;
 
 	restore_G_args(&sv, argv);
@@ -3267,13 +3532,13 @@ static int run_function(const struct function *funcp, char **argv)
 #endif /* ENABLE_HUSH_FUNCTIONS */
 
 
-# if BB_MMU
+#if BB_MMU
 #define exec_builtin(to_free, x, argv) \
 	exec_builtin(x, argv)
-# else
+#else
 #define exec_builtin(to_free, x, argv) \
 	exec_builtin(to_free, argv)
-# endif
+#endif
 static void exec_builtin(char ***to_free,
 		const struct built_in_command *x,
 		char **argv) NORETURN;
@@ -3281,11 +3546,11 @@ static void exec_builtin(char ***to_free,
 		const struct built_in_command *x,
 		char **argv)
 {
-# if BB_MMU
+#if BB_MMU
 	int rcode = x->function(argv);
-	fflush(NULL);
+	fflush_all();
 	_exit(rcode);
-# else
+#else
 	/* On NOMMU, we must never block!
 	 * Example: { sleep 99 | read line; } & echo Ok
 	 */
@@ -3294,9 +3559,19 @@ static void exec_builtin(char ***to_free,
 			G.global_argv[0],
 			G.global_argv + 1,
 			argv);
-# endif
+#endif
 }
 
+
+static void execvp_or_die(char **argv) NORETURN;
+static void execvp_or_die(char **argv)
+{
+	debug_printf_exec("execing '%s'\n", argv[0]);
+	sigprocmask(SIG_SETMASK, &G.inherited_set, NULL);
+	execvp(argv[0], argv);
+	bb_perror_msg("can't execute '%s'", argv[0]);
+	_exit(127); /* bash compat */
+}
 
 #if BB_MMU
 #define pseudo_exec_argv(nommu_save, argv, assignment_cnt, argv_expanded) \
@@ -3313,7 +3588,7 @@ static void exec_builtin(char ***to_free,
 static void pseudo_exec_argv(nommu_save_t *nommu_save,
 		char **argv, int assignment_cnt,
 		char **argv_expanded) NORETURN;
-static void pseudo_exec_argv(nommu_save_t *nommu_save,
+static NOINLINE void pseudo_exec_argv(nommu_save_t *nommu_save,
 		char **argv, int assignment_cnt,
 		char **argv_expanded)
 {
@@ -3397,11 +3672,7 @@ static void pseudo_exec_argv(nommu_save_t *nommu_save,
 #if ENABLE_FEATURE_SH_STANDALONE || BB_MMU
  skip:
 #endif
-	debug_printf_exec("execing '%s'\n", argv[0]);
-	sigprocmask(SIG_SETMASK, &G.inherited_set, NULL);
-	execvp(argv[0], argv);
-	bb_perror_msg("can't execute '%s'", argv[0]);
-	_exit(EXIT_FAILURE);
+	execvp_or_die(argv);
 }
 
 /* Called after [v]fork() in run_pipe
@@ -3635,9 +3906,7 @@ static int checkjobs(struct pipe* fg_pipe)
 					fg_pipe->alive_cmds--;
 					if (i == fg_pipe->num_cmds - 1) {
 						/* last process gives overall exitstatus */
-						/* Note: is WIFSIGNALED, WEXITSTATUS = sig + 128 */
 						rcode = WEXITSTATUS(status);
-						IF_HAS_KEYWORDS(if (fg_pipe->pi_inverted) rcode = !rcode;)
 						/* bash prints killer signal's name for *last*
 						 * process in pipe (prints just newline for SIGINT).
 						 * Mimic this. Example: "sleep 5" + (^\ or kill -QUIT)
@@ -3645,7 +3914,11 @@ static int checkjobs(struct pipe* fg_pipe)
 						if (WIFSIGNALED(status)) {
 							int sig = WTERMSIG(status);
 							printf("%s\n", sig == SIGINT ? "" : get_signame(sig));
+							/* TODO: MIPS has 128 sigs (1..128), what if sig==128 here?
+							 * Maybe we need to use sig | 128? */
+							rcode = sig + 128;
 						}
+						IF_HAS_KEYWORDS(if (fg_pipe->pi_inverted) rcode = !rcode;)
 					}
 				} else {
 					fg_pipe->cmds[i].is_stopped = 1;
@@ -3750,7 +4023,7 @@ static int checkjobs_and_fg_shell(struct pipe* fg_pipe)
  * backgrounded: cmd &     { list } &
  * subshell:     ( list ) [&]
  */
-static int run_pipe(struct pipe *pi)
+static NOINLINE int run_pipe(struct pipe *pi)
 {
 	static const char *const null_ptr = NULL;
 	int i;
@@ -3871,6 +4144,13 @@ static int run_pipe(struct pipe *pi)
 			argv_expanded = expand_strvec_to_strvec(argv + command->assignment_cnt);
 		}
 
+		/* if someone gives us an empty string: `cmd with empty output` */
+		if (!argv_expanded[0]) {
+			free(argv_expanded);
+			debug_leave();
+			return G.last_exitcode;
+		}
+
 		x = find_builtin(argv_expanded[0]);
 #if ENABLE_HUSH_FUNCTIONS
 		funcp = NULL;
@@ -3897,7 +4177,7 @@ static int run_pipe(struct pipe *pi)
 					debug_printf_exec(": builtin '%s' '%s'...\n",
 						x->cmd, argv_expanded[1]);
 					rcode = x->function(argv_expanded) & 0xff;
-					fflush(NULL);
+					fflush_all();
 				}
 #if ENABLE_HUSH_FUNCTIONS
 				else {
@@ -3982,6 +4262,7 @@ static int run_pipe(struct pipe *pi)
 		if (!command->pid) { /* child */
 #if ENABLE_HUSH_JOB
 			disable_restore_tty_pgrp_on_exit();
+			CLEAR_RANDOM_T(&G.random_gen); /* or else $RANDOM repeats in child */
 
 			/* Every child adds itself to new process group
 			 * with pgid == pid_of_first_child_in_pipe */
@@ -4084,30 +4365,30 @@ static void debug_print_tree(struct pipe *pi, int lvl)
 	};
 	static const char *RES[] = {
 		[RES_NONE ] = "NONE" ,
-#if ENABLE_HUSH_IF
+# if ENABLE_HUSH_IF
 		[RES_IF   ] = "IF"   ,
 		[RES_THEN ] = "THEN" ,
 		[RES_ELIF ] = "ELIF" ,
 		[RES_ELSE ] = "ELSE" ,
 		[RES_FI   ] = "FI"   ,
-#endif
-#if ENABLE_HUSH_LOOPS
+# endif
+# if ENABLE_HUSH_LOOPS
 		[RES_FOR  ] = "FOR"  ,
 		[RES_WHILE] = "WHILE",
 		[RES_UNTIL] = "UNTIL",
 		[RES_DO   ] = "DO"   ,
 		[RES_DONE ] = "DONE" ,
-#endif
-#if ENABLE_HUSH_LOOPS || ENABLE_HUSH_CASE
+# endif
+# if ENABLE_HUSH_LOOPS || ENABLE_HUSH_CASE
 		[RES_IN   ] = "IN"   ,
-#endif
-#if ENABLE_HUSH_CASE
+# endif
+# if ENABLE_HUSH_CASE
 		[RES_CASE ] = "CASE" ,
 		[RES_CASE_IN ] = "CASE_IN" ,
 		[RES_MATCH] = "MATCH",
 		[RES_CASE_BODY] = "CASE_BODY",
 		[RES_ESAC ] = "ESAC" ,
-#endif
+# endif
 		[RES_XXXX ] = "XXXX" ,
 		[RES_SNTX ] = "SNTX" ,
 	};
@@ -4115,9 +4396,9 @@ static void debug_print_tree(struct pipe *pi, int lvl)
 		"{}",
 		"()",
 		"[noglob]",
-#if ENABLE_HUSH_FUNCTIONS
+# if ENABLE_HUSH_FUNCTIONS
 		"func()",
-#endif
+# endif
 	};
 
 	int pin, prn;
@@ -4135,9 +4416,15 @@ static void debug_print_tree(struct pipe *pi, int lvl)
 					lvl*2, "", prn,
 					command->assignment_cnt);
 			if (command->group) {
-				fprintf(stderr, " group %s: (argv=%p)\n",
+				fprintf(stderr, " group %s: (argv=%p)%s%s\n",
 						CMDTYPE[command->cmd_type],
-						argv);
+						argv
+#if !BB_MMU
+						, " group_as_string:", command->group_as_string
+#else
+						, "", ""
+#endif
+				);
 				debug_print_tree(command->group, lvl+1);
 				prn++;
 				continue;
@@ -4153,7 +4440,7 @@ static void debug_print_tree(struct pipe *pi, int lvl)
 		pin++;
 	}
 }
-#endif
+#endif /* debug_print_tree */
 
 /* NB: called by pseudo_exec, and therefore must not modify any
  * global data until exec/_exit (we can be a child after vfork!) */
@@ -4627,25 +4914,25 @@ struct reserved_combo {
 };
 enum {
 	FLAG_END   = (1 << RES_NONE ),
-#if ENABLE_HUSH_IF
+# if ENABLE_HUSH_IF
 	FLAG_IF    = (1 << RES_IF   ),
 	FLAG_THEN  = (1 << RES_THEN ),
 	FLAG_ELIF  = (1 << RES_ELIF ),
 	FLAG_ELSE  = (1 << RES_ELSE ),
 	FLAG_FI    = (1 << RES_FI   ),
-#endif
-#if ENABLE_HUSH_LOOPS
+# endif
+# if ENABLE_HUSH_LOOPS
 	FLAG_FOR   = (1 << RES_FOR  ),
 	FLAG_WHILE = (1 << RES_WHILE),
 	FLAG_UNTIL = (1 << RES_UNTIL),
 	FLAG_DO    = (1 << RES_DO   ),
 	FLAG_DONE  = (1 << RES_DONE ),
 	FLAG_IN    = (1 << RES_IN   ),
-#endif
-#if ENABLE_HUSH_CASE
+# endif
+# if ENABLE_HUSH_CASE
 	FLAG_MATCH = (1 << RES_MATCH),
 	FLAG_ESAC  = (1 << RES_ESAC ),
-#endif
+# endif
 	FLAG_START = (1 << RES_XXXX ),
 };
 
@@ -4657,26 +4944,26 @@ static const struct reserved_combo* match_reserved_word(o_string *word)
 	 * FLAG_START means the word must start a new compound list.
 	 */
 	static const struct reserved_combo reserved_list[] = {
-#if ENABLE_HUSH_IF
+# if ENABLE_HUSH_IF
 		{ "!",     RES_NONE,  NOT_ASSIGNMENT , 0 },
 		{ "if",    RES_IF,    WORD_IS_KEYWORD, FLAG_THEN | FLAG_START },
 		{ "then",  RES_THEN,  WORD_IS_KEYWORD, FLAG_ELIF | FLAG_ELSE | FLAG_FI },
 		{ "elif",  RES_ELIF,  WORD_IS_KEYWORD, FLAG_THEN },
 		{ "else",  RES_ELSE,  WORD_IS_KEYWORD, FLAG_FI   },
 		{ "fi",    RES_FI,    NOT_ASSIGNMENT , FLAG_END  },
-#endif
-#if ENABLE_HUSH_LOOPS
+# endif
+# if ENABLE_HUSH_LOOPS
 		{ "for",   RES_FOR,   NOT_ASSIGNMENT , FLAG_IN | FLAG_DO | FLAG_START },
 		{ "while", RES_WHILE, WORD_IS_KEYWORD, FLAG_DO | FLAG_START },
 		{ "until", RES_UNTIL, WORD_IS_KEYWORD, FLAG_DO | FLAG_START },
 		{ "in",    RES_IN,    NOT_ASSIGNMENT , FLAG_DO   },
 		{ "do",    RES_DO,    WORD_IS_KEYWORD, FLAG_DONE },
 		{ "done",  RES_DONE,  NOT_ASSIGNMENT , FLAG_END  },
-#endif
-#if ENABLE_HUSH_CASE
+# endif
+# if ENABLE_HUSH_CASE
 		{ "case",  RES_CASE,  NOT_ASSIGNMENT , FLAG_MATCH | FLAG_START },
 		{ "esac",  RES_ESAC,  NOT_ASSIGNMENT , FLAG_END  },
-#endif
+# endif
 	};
 	const struct reserved_combo *r;
 
@@ -4690,11 +4977,11 @@ static const struct reserved_combo* match_reserved_word(o_string *word)
  */
 static int reserved_word(o_string *word, struct parse_context *ctx)
 {
-#if ENABLE_HUSH_CASE
+# if ENABLE_HUSH_CASE
 	static const struct reserved_combo reserved_match = {
 		"",        RES_MATCH, NOT_ASSIGNMENT , FLAG_MATCH | FLAG_ESAC
 	};
-#endif
+# endif
 	const struct reserved_combo *r;
 
 	if (word->o_quoted)
@@ -4704,12 +4991,12 @@ static int reserved_word(o_string *word, struct parse_context *ctx)
 		return 0;
 
 	debug_printf("found reserved word %s, res %d\n", r->literal, r->res);
-#if ENABLE_HUSH_CASE
+# if ENABLE_HUSH_CASE
 	if (r->res == RES_IN && ctx->ctx_res_w == RES_CASE_IN) {
 		/* "case word IN ..." - IN part starts first MATCH part */
 		r = &reserved_match;
 	} else
-#endif
+# endif
 	if (r->flag == 0) { /* '!' */
 		if (ctx->ctx_inverted) { /* bash doesn't accept '! ! true' */
 			syntax_error("! ! command");
@@ -4750,19 +5037,19 @@ static int reserved_word(o_string *word, struct parse_context *ctx)
 		old = ctx->stack;
 		old->command->group = ctx->list_head;
 		old->command->cmd_type = CMD_NORMAL;
-#if !BB_MMU
+# if !BB_MMU
 		o_addstr(&old->as_string, ctx->as_string.data);
 		o_free_unsafe(&ctx->as_string);
 		old->command->group_as_string = xstrdup(old->as_string.data);
 		debug_printf_parse("pop, remembering as:'%s'\n",
 				old->command->group_as_string);
-#endif
+# endif
 		*ctx = *old;   /* physical copy */
 		free(old);
 	}
 	return 1;
 }
-#endif
+#endif /* HAS_KEYWORDS */
 
 /* Word is complete, look at it and update parsing context.
  * Normal return is 0. Syntax errors return 1.
@@ -5165,13 +5452,13 @@ static int fetch_heredocs(int heredoc_cnt, struct parse_context *ctx, struct in_
 
 
 #if ENABLE_HUSH_TICK
-static FILE *generate_stream_from_string(const char *s)
+static FILE *generate_stream_from_string(const char *s, pid_t *pid_p)
 {
-	FILE *pf;
-	int pid, channel[2];
-#if !BB_MMU
-	char **to_free;
-#endif
+	pid_t pid;
+	int channel[2];
+# if !BB_MMU
+	char **to_free = NULL;
+# endif
 
 	xpipe(channel);
 	pid = BB_MMU ? fork() : vfork();
@@ -5189,6 +5476,7 @@ static FILE *generate_stream_from_string(const char *s)
 			+ (1 << SIGTTIN)
 			+ (1 << SIGTTOU)
 			, SIG_IGN);
+		CLEAR_RANDOM_T(&G.random_gen); /* or else $RANDOM repeats in child */
 		close(channel[0]); /* NB: close _first_, then move fd! */
 		xmove_fd(channel[1], 1);
 		/* Prevent it from trying to handle ctrl-z etc */
@@ -5234,11 +5522,11 @@ static FILE *generate_stream_from_string(const char *s)
 			builtin_trap((char**)argv);
 			exit(0); /* not _exit() - we need to fflush */
 		}
-#if BB_MMU
+# if BB_MMU
 		reset_traps_to_defaults();
 		parse_and_run_string(s);
 		_exit(G.last_exitcode);
-#else
+# else
 	/* We re-execute after vfork on NOMMU. This makes this script safe:
 	 * yes "0123456789012345678901234567890" | dd bs=32 count=64k >BIG
 	 * huge=`cat BIG` # was blocking here forever
@@ -5249,37 +5537,36 @@ static FILE *generate_stream_from_string(const char *s)
 				G.global_argv[0],
 				G.global_argv + 1,
 				NULL);
-#endif
+# endif
 	}
 
 	/* parent */
-#if ENABLE_HUSH_FAST
+	*pid_p = pid;
+# if ENABLE_HUSH_FAST
 	G.count_SIGCHLD++;
 //bb_error_msg("[%d] fork in generate_stream_from_string: G.count_SIGCHLD:%d G.handled_SIGCHLD:%d", getpid(), G.count_SIGCHLD, G.handled_SIGCHLD);
-#endif
+# endif
 	enable_restore_tty_pgrp_on_exit();
-#if !BB_MMU
+# if !BB_MMU
 	free(to_free);
-#endif
+# endif
 	close(channel[1]);
-	pf = fdopen(channel[0], "r");
-	return pf;
+	close_on_exec_on(channel[0]);
+	return xfdopen_for_read(channel[0]);
 }
 
 /* Return code is exit status of the process that is run. */
 static int process_command_subs(o_string *dest, const char *s)
 {
-	FILE *pf;
+	FILE *fp;
 	struct in_str pipe_str;
-	int ch, eol_cnt;
+	pid_t pid;
+	int status, ch, eol_cnt;
 
-	pf = generate_stream_from_string(s);
-	if (pf == NULL)
-		return 1;
-	close_on_exec_on(fileno(pf));
+	fp = generate_stream_from_string(s, &pid);
 
 	/* Now send results of command back into original context */
-	setup_file_in_str(&pipe_str, pf);
+	setup_file_in_str(&pipe_str, fp);
 	eol_cnt = 0;
 	while ((ch = i_getch(&pipe_str)) != EOF) {
 		if (ch == '\n') {
@@ -5293,19 +5580,21 @@ static int process_command_subs(o_string *dest, const char *s)
 		o_addQchr(dest, ch);
 	}
 
-	debug_printf("done reading from pipe, pclose()ing\n");
-	/* Note: we got EOF, and we just close the read end of the pipe.
-	 * We do not wait for the `cmd` child to terminate. bash and ash do.
-	 * Try these:
-	 * echo `echo Hi; exec 1>&-; sleep 2` - bash waits 2 sec
-	 * `false`; echo $? - bash outputs "1"
-	 */
-	fclose(pf);
-	debug_printf("closed FILE from child. return 0\n");
-	return 0;
+	debug_printf("done reading from `cmd` pipe, closing it\n");
+	fclose(fp);
+	/* We need to extract exitcode. Test case
+	 * "true; echo `sleep 1; false` $?"
+	 * should print 1 */
+	safe_waitpid(pid, &status, 0);
+	debug_printf("child exited. returning its exitcode:%d\n", WEXITSTATUS(status));
+	return WEXITSTATUS(status);
 }
-#endif
+#endif /* ENABLE_HUSH_TICK */
 
+#if !ENABLE_HUSH_FUNCTIONS
+#define parse_group(dest, ctx, input, ch) \
+	parse_group(ctx, input, ch)
+#endif
 static int parse_group(o_string *dest, struct parse_context *ctx,
 	struct in_str *input, int ch)
 {
@@ -5349,6 +5638,8 @@ static int parse_group(o_string *dest, struct parse_context *ctx,
 		goto skip;
 	}
 #endif
+
+#if 0 /* Prevented by caller */
 	if (command->argv /* word [word]{... */
 	 || dest->length /* word{... */
 	 || dest->o_quoted /* ""{... */
@@ -5358,6 +5649,7 @@ static int parse_group(o_string *dest, struct parse_context *ctx,
 			"syntax error, groups and arglists don't mix\n");
 		return 1;
 	}
+#endif
 
 #if ENABLE_HUSH_FUNCTIONS
  skip:
@@ -5672,7 +5964,7 @@ static int handle_dollar(o_string *as_string,
 		o_addchr(dest, SPECIAL_VAR_SYMBOL);
 		break;
 	}
-#if (ENABLE_SH_MATH_SUPPORT || ENABLE_HUSH_TICK)
+#if ENABLE_SH_MATH_SUPPORT || ENABLE_HUSH_TICK
 	case '(': {
 # if !BB_MMU
 		int pos;
@@ -5710,7 +6002,7 @@ static int handle_dollar(o_string *as_string,
 #  if !BB_MMU
 		if (as_string) {
 			o_addstr(as_string, dest->data + pos);
-			o_addchr(as_string, '`');
+			o_addchr(as_string, ')');
 		}
 #  endif
 		o_addchr(dest, SPECIAL_VAR_SYMBOL);
@@ -5770,7 +6062,7 @@ static int parse_stream_dquoted(o_string *as_string,
 	if (ch != '\n') {
 		next = i_peek(input);
 	}
-	debug_printf_parse(": ch=%c (%d) escape=%d\n",
+	debug_printf_parse("\" ch=%c (%d) escape=%d\n",
 					ch, ch, dest->o_escape);
 	if (ch == '\\') {
 		if (next == EOF) {
@@ -5850,9 +6142,14 @@ static struct pipe *parse_stream(char **pstring,
 			end_trigger ? end_trigger : 'X');
 	debug_enter();
 
+	/* If very first arg is "" or '', dest.data may end up NULL.
+	 * Preventing this: */
+	o_addchr(&dest, '\0');
+	dest.length = 0;
+
 	G.ifs = get_local_var_value("IFS");
 	if (G.ifs == NULL)
-		G.ifs = " \t\n";
+		G.ifs = defifs;
 
  reset:
 #if ENABLE_HUSH_INTERACTIVE
@@ -5922,10 +6219,24 @@ static struct pipe *parse_stream(char **pstring,
 			return pi;
 		}
 		nommu_addchr(&ctx.as_string, ch);
+
+		next = '\0';
+		if (ch != '\n')
+			next = i_peek(input);
+
+		is_special = "{}<>;&|()#'" /* special outside of "str" */
+				"\\$\"" IF_HUSH_TICK("`"); /* always special */
+		/* Are { and } special here? */
+		if (ctx.command->argv /* word [word]{... */
+		 || dest.length /* word{... */
+		 || dest.o_quoted /* ""{... */
+		 || (next != ';' && next != ')' && !strchr(G.ifs, next)) /* {word */
+		) {
+			/* They are not special, skip "{}" */
+			is_special += 2;
+		}
+		is_special = strchr(is_special, ch);
 		is_ifs = strchr(G.ifs, ch);
-		is_special = strchr("<>;&|(){}#'" /* special outside of "str" */
-				"\\$\"" IF_HUSH_TICK("`") /* always special */
-				, ch);
 
 		if (!is_special && !is_ifs) { /* ordinary char */
  ordinary_char:
@@ -6036,11 +6347,6 @@ static struct pipe *parse_stream(char **pstring,
 		if (is_ifs)
 			continue;
 
-		next = '\0';
-		if (ch != '\n') {
-			next = i_peek(input);
-		}
-
 		/* Catch <, > before deciding whether this word is
 		 * an assignment. a=1 2>z b=2: b=2 is still assignment */
 		switch (ch) {
@@ -6132,12 +6438,13 @@ static struct pipe *parse_stream(char **pstring,
 				/* Example: echo Hello \2>file
 				 * we need to know that word 2 is quoted */
 				dest.o_quoted = 1;
-			} else {
+			}
 #if !BB_MMU
+			else {
 				/* It's "\<newline>". Remove trailing '\' from ctx.as_string */
 				ctx.as_string.data[--ctx.as_string.length] = '\0';
-#endif
 			}
+#endif
 			break;
 		case '$':
 			if (handle_dollar(&ctx.as_string, &dest, input) != 0) {
@@ -6244,6 +6551,9 @@ static struct pipe *parse_stream(char **pstring,
 				 * with redirect_opt_num(), but bash doesn't do it.
 				 * "echo foo 2| cat" yields "foo 2". */
 				done_command(&ctx);
+#if !BB_MMU
+				o_reset_to_empty_unquoted(&ctx.as_string);
+#endif
 			}
 			goto new_cmd;
 		case '(':
@@ -6339,15 +6649,26 @@ static struct pipe *parse_stream(char **pstring,
  */
 static void parse_and_run_stream(struct in_str *inp, int end_trigger)
 {
+	/* Why we need empty flag?
+	 * An obscure corner case "false; ``; echo $?":
+	 * empty command in `` should still set $? to 0.
+	 * But we can't just set $? to 0 at the start,
+	 * this breaks "false; echo `echo $?`" case.
+	 */
+	bool empty = 1;
 	while (1) {
 		struct pipe *pipe_list;
 
 		pipe_list = parse_stream(NULL, inp, end_trigger);
-		if (!pipe_list) /* EOF */
+		if (!pipe_list) { /* EOF */
+			if (empty)
+				G.last_exitcode = 0;
 			break;
+		}
 		debug_print_tree(pipe_list, 0);
 		debug_printf_exec("parse_and_run_stream: run_and_free_list\n");
 		run_and_free_list(pipe_list);
+		empty = 0;
 	}
 }
 
@@ -6366,10 +6687,17 @@ static void parse_and_run_file(FILE *f)
 }
 
 /* Called a few times only (or even once if "sh -c") */
-static void block_signals(int second_time)
+static void init_sigmasks(void)
 {
 	unsigned sig;
 	unsigned mask;
+	sigset_t old_blocked_set;
+
+	if (!G.inherited_set_is_saved) {
+		sigprocmask(SIG_SETMASK, NULL, &G.blocked_set);
+		G.inherited_set = G.blocked_set;
+	}
+	old_blocked_set = G.blocked_set;
 
 	mask = (1 << SIGQUIT);
 	if (G_interactive_fd) {
@@ -6379,8 +6707,6 @@ static void block_signals(int second_time)
 	}
 	G.non_DFL_mask = mask;
 
-	if (!second_time)
-		sigprocmask(SIG_SETMASK, NULL, &G.blocked_set);
 	sig = 0;
 	while (mask) {
 		if (mask & 1)
@@ -6390,18 +6716,21 @@ static void block_signals(int second_time)
 	}
 	sigdelset(&G.blocked_set, SIGCHLD);
 
-	sigprocmask(SIG_SETMASK, &G.blocked_set,
-			second_time ? NULL : &G.inherited_set);
+	if (memcmp(&old_blocked_set, &G.blocked_set, sizeof(old_blocked_set)) != 0)
+		sigprocmask(SIG_SETMASK, &G.blocked_set, NULL);
+
 	/* POSIX allows shell to re-enable SIGCHLD
 	 * even if it was SIG_IGN on entry */
 #if ENABLE_HUSH_FAST
 	G.count_SIGCHLD++; /* ensure it is != G.handled_SIGCHLD */
-	if (!second_time)
+	if (!G.inherited_set_is_saved)
 		signal(SIGCHLD, SIGCHLD_handler);
 #else
-	if (!second_time)
+	if (!G.inherited_set_is_saved)
 		signal(SIGCHLD, SIG_DFL);
 #endif
+
+	G.inherited_set_is_saved = 1;
 }
 
 #if ENABLE_HUSH_JOB
@@ -6463,7 +6792,6 @@ int hush_main(int argc, char **argv)
 		.flg_export = 1,
 		.flg_read_only = 1,
 	};
-	int signal_mask_is_inited = 0;
 	int opt;
 	unsigned builtin_argc;
 	char **e;
@@ -6510,7 +6838,7 @@ int hush_main(int argc, char **argv)
 	 * MACHTYPE=i386-pc-linux-gnu
 	 * OSTYPE=linux-gnu
 	 * HOSTNAME=<xxxxxxxxxx>
-	 * PPID=<NNNNN>
+	 * PPID=<NNNNN> - we also do it elsewhere
 	 * EUID=<NNNNN>
 	 * UID=<NNNNN>
 	 * GROUPS=()
@@ -6554,10 +6882,9 @@ int hush_main(int argc, char **argv)
 	}
 
 	/* Shell is non-interactive at first. We need to call
-	 * block_signals(0) if we are going to execute "sh <script>",
+	 * init_sigmasks() if we are going to execute "sh <script>",
 	 * "sh -c <cmds>" or login shell's /etc/profile and friends.
-	 * If we later decide that we are interactive, we run block_signals(0)
-	 * (or re-run block_signals(1) if we ran block_signals(0) before)
+	 * If we later decide that we are interactive, we run init_sigmasks()
 	 * in order to intercept (more) signals.
 	 */
 
@@ -6587,15 +6914,17 @@ int hush_main(int argc, char **argv)
 			 * Note: this form never happens:
 			 * sh ... -c 'builtin' [BARGV...] ""
 			 */
-			if (!G.root_pid)
+			if (!G.root_pid) {
 				G.root_pid = getpid();
+				G.root_ppid = getppid();
+			}
 			G.global_argv = argv + optind;
 			G.global_argc = argc - optind;
 			if (builtin_argc) {
 				/* -c 'builtin' [BARGV...] "" ARG0 [ARG1...] */
 				const struct built_in_command *x;
 
-				block_signals(0); /* 0: called 1st time */
+				init_sigmasks();
 				x = find_builtin(optarg);
 				if (x) { /* paranoia */
 					G.global_argc -= builtin_argc; /* skip [BARGV...] "" */
@@ -6611,7 +6940,7 @@ int hush_main(int argc, char **argv)
 				G.global_argv[0] = argv[0];
 				G.global_argc--;
 			} /* else -c 'script' ARG0 [ARG1...]: $0 is ARG0 */
-			block_signals(0); /* 0: called 1st time */
+			init_sigmasks();
 			parse_and_run_string(optarg);
 			goto final_return;
 		case 'i':
@@ -6627,19 +6956,38 @@ int hush_main(int argc, char **argv)
 		case '<': /* "big heredoc" support */
 			full_write(STDOUT_FILENO, optarg, strlen(optarg));
 			_exit(0);
-		case '$':
+		case '$': {
+			unsigned long long empty_trap_mask;
+
 			G.root_pid = bb_strtou(optarg, &optarg, 16);
+			optarg++;
+			G.root_ppid = bb_strtou(optarg, &optarg, 16);
 			optarg++;
 			G.last_bg_pid = bb_strtou(optarg, &optarg, 16);
 			optarg++;
 			G.last_exitcode = bb_strtou(optarg, &optarg, 16);
 			optarg++;
 			builtin_argc = bb_strtou(optarg, &optarg, 16);
+			optarg++;
+			empty_trap_mask = bb_strtoull(optarg, &optarg, 16);
+			if (empty_trap_mask != 0) {
+				int sig;
+				init_sigmasks();
+				G.traps = xzalloc(sizeof(G.traps[0]) * NSIG);
+				for (sig = 1; sig < NSIG; sig++) {
+					if (empty_trap_mask & (1LL << sig)) {
+						G.traps[sig] = xzalloc(1); /* == xstrdup(""); */
+						sigaddset(&G.blocked_set, sig);
+					}
+				}
+				sigprocmask(SIG_SETMASK, &G.blocked_set, NULL);
+			}
 # if ENABLE_HUSH_LOOPS
 			optarg++;
 			G.depth_of_loop = bb_strtou(optarg, &optarg, 16);
 # endif
 			break;
+		}
 		case 'R':
 		case 'V':
 			set_local_var(xstrdup(optarg), /*exp:*/ 0, /*lvl:*/ 0, /*ro:*/ opt == 'R');
@@ -6670,8 +7018,10 @@ int hush_main(int argc, char **argv)
 		}
 	} /* option parsing loop */
 
-	if (!G.root_pid)
+	if (!G.root_pid) {
 		G.root_pid = getpid();
+		G.root_ppid = getppid();
+	}
 
 	/* If we are login shell... */
 	if (argv[0] && argv[0][0] == '-') {
@@ -6680,8 +7030,7 @@ int hush_main(int argc, char **argv)
 		input = fopen_for_read("/etc/profile");
 		if (input != NULL) {
 			close_on_exec_on(fileno(input));
-			block_signals(0); /* 0: called 1st time */
-			signal_mask_is_inited = 1;
+			init_sigmasks();
 			parse_and_run_file(input);
 			fclose(input);
 		}
@@ -6706,8 +7055,7 @@ int hush_main(int argc, char **argv)
 		G.global_argc = argc - optind;
 		input = xfopen_for_read(argv[optind]);
 		close_on_exec_on(fileno(input));
-		if (!signal_mask_is_inited)
-			block_signals(0); /* 0: called 1st time */
+		init_sigmasks();
 		parse_and_run_file(input);
 #if ENABLE_FEATURE_CLEAN_UP
 		fclose(input);
@@ -6716,7 +7064,7 @@ int hush_main(int argc, char **argv)
 	}
 
 	/* Up to here, shell was non-interactive. Now it may become one.
-	 * NB: don't forget to (re)run block_signals(0/1) as needed.
+	 * NB: don't forget to (re)run init_sigmasks() as needed.
 	 */
 
 	/* A shell is interactive if the '-i' flag was given,
@@ -6769,7 +7117,7 @@ int hush_main(int argc, char **argv)
 		}
 
 		/* Block some signals */
-		block_signals(signal_mask_is_inited);
+		init_sigmasks();
 
 		if (G_saved_tty_pgrp) {
 			/* Set other signals to restore saved_tty_pgrp */
@@ -6783,9 +7131,9 @@ int hush_main(int argc, char **argv)
 		/* -1 is special - makes xfuncs longjmp, not exit
 		 * (we reset die_sleep = 0 whereever we [v]fork) */
 		enable_restore_tty_pgrp_on_exit(); /* sets die_sleep = -1 */
-	} else if (!signal_mask_is_inited) {
-		block_signals(0); /* 0: called 1st time */
-	} /* else: block_signals(0) was done before */
+	} else {
+		init_sigmasks();
+	}
 #elif ENABLE_HUSH_INTERACTIVE
 	/* No job control compiled in, only prompt/line editing */
 	if (isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
@@ -6800,15 +7148,11 @@ int hush_main(int argc, char **argv)
 	}
 	if (G_interactive_fd) {
 		close_on_exec_on(G_interactive_fd);
-		block_signals(signal_mask_is_inited);
-	} else if (!signal_mask_is_inited) {
-		block_signals(0);
 	}
+	init_sigmasks();
 #else
 	/* We have interactiveness code disabled */
-	if (!signal_mask_is_inited) {
-		block_signals(0);
-	}
+	init_sigmasks();
 #endif
 	/* bash:
 	 * if interactive but not a login shell, sources ~/.bashrc
@@ -6816,10 +7160,13 @@ int hush_main(int argc, char **argv)
 	 */
 
 	if (!ENABLE_FEATURE_SH_EXTRA_QUIET && G_interactive_fd) {
-		printf("\n\n%s hush - the humble shell\n", bb_banner);
-		if (ENABLE_HUSH_HELP)
-			puts("Enter 'help' for a list of built-in commands.");
-		puts("");
+		/* note: ash and hush share this string */
+		printf("\n\n%s %s\n"
+			IF_HUSH_HELP("Enter 'help' for a list of built-in commands.\n")
+			"\n",
+			bb_banner,
+			"hush - the humble shell"
+		);
 	}
 
 	parse_and_run_file(stdin);
@@ -6868,25 +7215,32 @@ static int FAST_FUNC builtin_true(char **argv UNUSED_PARAM)
 	return 0;
 }
 
-static int FAST_FUNC builtin_test(char **argv)
+static int run_applet_main(char **argv, int (*applet_main_func)(int argc, char **argv))
 {
 	int argc = 0;
 	while (*argv) {
 		argc++;
 		argv++;
 	}
-	return test_main(argc, argv - argc);
+	return applet_main_func(argc, argv - argc);
+}
+
+static int FAST_FUNC builtin_test(char **argv)
+{
+	return run_applet_main(argv, test_main);
 }
 
 static int FAST_FUNC builtin_echo(char **argv)
 {
-	int argc = 0;
-	while (*argv) {
-		argc++;
-		argv++;
-	}
-	return echo_main(argc, argv - argc);
+	return run_applet_main(argv, echo_main);
 }
+
+#if ENABLE_PRINTF
+static int FAST_FUNC builtin_printf(char **argv)
+{
+	return run_applet_main(argv, printf_main);
+}
+#endif
 
 static int FAST_FUNC builtin_eval(char **argv)
 {
@@ -6933,14 +7287,17 @@ static int FAST_FUNC builtin_exec(char **argv)
 {
 	if (*++argv == NULL)
 		return EXIT_SUCCESS; /* bash does this */
-	{
-#if !BB_MMU
-		nommu_save_t dummy;
-#endif
-		/* TODO: if exec fails, bash does NOT exit! We do... */
-		pseudo_exec_argv(&dummy, argv, 0, NULL);
-		/* never returns */
-	}
+
+	/* Careful: we can end up here after [v]fork. Do not restore
+	 * tty pgrp then, only top-level shell process does that */
+	if (G_saved_tty_pgrp && getpid() == G.root_pid)
+		tcsetpgrp(G_interactive_fd, G_saved_tty_pgrp);
+
+	/* TODO: if exec fails, bash does NOT exit! We do.
+	 * We'll need to undo sigprocmask (it's inside execvp_or_die)
+	 * and tcsetpgrp, and this is inherently racy.
+	 */
+	execvp_or_die(argv);
 }
 
 static int FAST_FUNC builtin_exit(char **argv)
@@ -7073,7 +7430,7 @@ static int FAST_FUNC builtin_export(char **argv)
 				putchar('\n');
 #endif
 			}
-			/*fflush(stdout); - done after each builtin anyway */
+			/*fflush_all(); - done after each builtin anyway */
 		}
 		return EXIT_SUCCESS;
 	}
@@ -7118,7 +7475,7 @@ static int FAST_FUNC builtin_trap(char **argv)
 				printf(" %s\n", get_signame(i));
 			}
 		}
-		/*fflush(stdout); - done after each builtin anyway */
+		/*fflush_all(); - done after each builtin anyway */
 		return EXIT_SUCCESS;
 	}
 
@@ -7141,7 +7498,7 @@ static int FAST_FUNC builtin_trap(char **argv)
 			free(G.traps[sig]);
 			G.traps[sig] = xstrdup(new_cmd);
 
-			debug_printf("trap: setting SIG%s (%i) to '%s'",
+			debug_printf("trap: setting SIG%s (%i) to '%s'\n",
 				get_signame(sig), sig, G.traps[sig]);
 
 			/* There is no signal for 0 (EXIT) */
@@ -7326,10 +7683,10 @@ static int FAST_FUNC builtin_memleak(char **argv UNUSED_PARAM)
 	void *p;
 	unsigned long l;
 
-#ifdef M_TRIM_THRESHOLD
+# ifdef M_TRIM_THRESHOLD
 	/* Optional. Reduces probability of false positives */
 	malloc_trim(0);
-#endif
+# endif
 	/* Crude attempt to find where "free memory" starts,
 	 * sans fragmentation. */
 	p = malloc(240);
@@ -7362,24 +7719,37 @@ static int FAST_FUNC builtin_pwd(char **argv UNUSED_PARAM)
 
 static int FAST_FUNC builtin_read(char **argv)
 {
-	char *string;
-	const char *name = "REPLY";
+	const char *r;
+	char *opt_n = NULL;
+	char *opt_p = NULL;
+	char *opt_t = NULL;
+	char *opt_u = NULL;
+	int read_flags;
 
-	if (argv[1]) {
-		name = argv[1];
-		/* bash (3.2.33(1)) bug: "read 0abcd" will execute,
-		 * and _after_ that_ it will complain */
-		if (!is_well_formed_var_name(name, '\0')) {
-			/* Mimic bash message */
-			bb_error_msg("read: '%s': not a valid identifier", name);
-			return 1;
-		}
+	/* "!": do not abort on errors.
+	 * Option string must start with "sr" to match BUILTIN_READ_xxx
+	 */
+	read_flags = getopt32(argv, "!srn:p:t:u:", &opt_n, &opt_p, &opt_t, &opt_u);
+	if (read_flags == (uint32_t)-1)
+		return EXIT_FAILURE;
+	argv += optind;
+
+	r = shell_builtin_read(set_local_var_from_halves,
+		argv,
+		get_local_var_value("IFS"), /* can be NULL */
+		read_flags,
+		opt_n,
+		opt_p,
+		opt_t,
+		opt_u
+	);
+
+	if ((uintptr_t)r > 1) {
+		bb_error_msg("%s", r);
+		r = (char*)(uintptr_t)1;
 	}
 
-//TODO: bash unbackslashes input, splits words and puts them in argv[i]
-
-	string = xmalloc_reads(STDIN_FILENO, xasprintf("%s=", name), NULL);
-	return set_local_var(string, /*exp:*/ 0, /*lvl:*/ 0, /*ro:*/ 0);
+	return (uintptr_t)r;
 }
 
 /* http://www.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#set

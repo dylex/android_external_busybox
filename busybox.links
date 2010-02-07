@@ -65,11 +65,15 @@
 /sbin/losetup
 /bin/ls
 /sbin/lsmod
+/sbin/lspci
+/sbin/lsusb
 /bin/lzop
 /bin/lzopcat
 /bin/md5sum
 /bin/mkdir
+/sbin/mke2fs
 /bin/mkfifo
+/sbin/mkfs.ext2
 /bin/mknod
 /sbin/mkswap
 /bin/mktemp
@@ -134,6 +138,7 @@
 /bin/traceroute
 /bin/true
 /bin/tty
+/sbin/tune2fs
 /bin/umount
 /bin/uname
 /bin/uniq

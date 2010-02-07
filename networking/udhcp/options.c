@@ -57,7 +57,7 @@ const struct dhcp_option dhcp_options[] = {
 	 * with "option XXX YYY" syntax in dhcpd config file. */
 
 	{ OPTION_U16                              , 0x39 }, /* DHCP_MAX_SIZE      */
-	{ } /* zeroed terminating entry */
+	{ 0, 0 } /* zeroed terminating entry */
 };
 
 /* Used for converting options from incoming packets to env variables
@@ -255,6 +255,6 @@ int FAST_FUNC add_simple_option(uint8_t *optionptr, uint8_t code, uint32_t data)
 		}
 	}
 
-	bb_error_msg("cannot add option 0x%02x", code);
+	bb_error_msg("can't add option 0x%02x", code);
 	return 0;
 }

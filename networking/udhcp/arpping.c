@@ -57,7 +57,7 @@ int FAST_FUNC arpping(uint32_t test_nip,
 	}
 
 	if (setsockopt_broadcast(s) == -1) {
-		bb_perror_msg("cannot enable bcast on raw socket");
+		bb_perror_msg("can't enable bcast on raw socket");
 		goto ret;
 	}
 
@@ -88,14 +88,14 @@ int FAST_FUNC arpping(uint32_t test_nip,
 	timeout_ms = 2000;
 	do {
 		int r;
-		unsigned prevTime = monotonic_us();
+		unsigned prevTime = monotonic_ms();
 
 		pfd[0].events = POLLIN;
 		r = safe_poll(pfd, 1, timeout_ms);
 		if (r < 0)
 			break;
 		if (r) {
-			r = read(s, &arp, sizeof(arp));
+			r = safe_read(s, &arp, sizeof(arp));
 			if (r < 0)
 				break;
 
@@ -119,7 +119,7 @@ int FAST_FUNC arpping(uint32_t test_nip,
 				break;
 			}
 		}
-		timeout_ms -= ((unsigned)monotonic_us() - prevTime) / 1000;
+		timeout_ms -= (unsigned)monotonic_ms() - prevTime;
 	} while (timeout_ms > 0);
 
  ret:

@@ -137,7 +137,7 @@ static void die_if_nologin(void)
 		puts("\r\nSystem closed for routine maintenance\r");
 
 	fclose(fp);
-	fflush(NULL);
+	fflush_all();
 	/* Users say that they do need this prior to exit: */
 	tcdrain(STDOUT_FILENO);
 	exit(EXIT_FAILURE);
@@ -175,7 +175,7 @@ static void initselinux(char *username, char *full_tty,
 		return;
 
 	if (get_default_context(username, NULL, user_sid)) {
-		bb_error_msg_and_die("cannot get SID for %s", username);
+		bb_error_msg_and_die("can't get SID for %s", username);
 	}
 	if (getfilecon(full_tty, &old_tty_sid) < 0) {
 		bb_perror_msg_and_die("getfilecon(%s) failed", full_tty);
@@ -225,19 +225,22 @@ static void get_username_or_die(char *buf, int size_buf)
 	/* skip whitespace */
 	do {
 		c = getchar();
-		if (c == EOF) exit(EXIT_FAILURE);
+		if (c == EOF)
+			exit(EXIT_FAILURE);
 		if (c == '\n') {
-			if (!--cntdown) exit(EXIT_FAILURE);
+			if (!--cntdown)
+				exit(EXIT_FAILURE);
 			goto prompt;
 		}
-	} while (isspace(c));
+	} while (isspace(c)); /* maybe isblank? */
 
 	*buf++ = c;
 	if (!fgets(buf, size_buf-2, stdin))
 		exit(EXIT_FAILURE);
 	if (!strchr(buf, '\n'))
 		exit(EXIT_FAILURE);
-	while (isgraph(*buf)) buf++;
+	while ((unsigned char)*buf > ' ')
+		buf++;
 	*buf = '\0';
 }
 
@@ -247,7 +250,7 @@ static void motd(void)
 
 	fd = open(bb_path_motd_file, O_RDONLY);
 	if (fd >= 0) {
-		fflush(stdout);
+		fflush_all();
 		bb_copyfd_eof(fd, STDOUT_FILENO);
 		close(fd);
 	}
@@ -260,7 +263,7 @@ static void alarm_handler(int sig UNUSED_PARAM)
 	 * We don't want to block here */
 	ndelay_on(1);
 	printf("\r\nLogin timed out after %d seconds\r\n", TIMEOUT);
-	fflush(stdout);
+	fflush_all();
 	/* unix API is brain damaged regarding O_NONBLOCK,
 	 * we should undo it, or else we can affect other processes */
 	ndelay_off(1);
@@ -409,7 +412,9 @@ int login_main(int argc UNUSED_PARAM, char **argv)
 		break; /* success, continue login process */
 
  pam_auth_failed:
-		bb_error_msg("pam_%s call failed: %s (%d)", failed_msg,
+		/* syslog, because we don't want potential attacker
+		 * to know _why_ login failed */
+		syslog(LOG_WARNING, "pam_%s call failed: %s (%d)", failed_msg,
 					pam_strerror(pamh, pamret), pamret);
 		safe_strncpy(username, "UNKNOWN", sizeof(username));
 #else /* not PAM */

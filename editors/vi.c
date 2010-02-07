@@ -30,9 +30,10 @@
 #if ENABLE_LOCALE_SUPPORT
 
 #if ENABLE_FEATURE_VI_8BIT
-#define Isprint(c) isprint(c)
+//FIXME: this does not work properly for Unicode anyway
+# define Isprint(c) (isprint)(c)
 #else
-#define Isprint(c) (isprint(c) && (unsigned char)(c) < 0x7f)
+# define Isprint(c) isprint_asciionly(c)
 #endif
 
 #else
@@ -891,7 +892,7 @@ static void colon(char *buf)
 			li, ch);
 	} else if (strncmp(cmd, "file", i) == 0) {	// what File is this
 		if (b != -1 || e != -1) {
-			not_implemented("No address allowed on this command");
+			status_line_bold("No address allowed on this command");
 			goto vc1;
 		}
 		if (args[0]) {
@@ -1210,7 +1211,7 @@ static int next_tabstop(int col)
 }
 
 //----- Synchronize the cursor to Dot --------------------------
-static void sync_cursor(char *d, int *row, int *col)
+static NOINLINE void sync_cursor(char *d, int *row, int *col)
 {
 	char *beg_cur;	// begin and end of "d" line
 	char *tp;
@@ -1783,23 +1784,23 @@ static int st_test(char *p, int type, int dir, char *tested)
 
 	if (type == S_BEFORE_WS) {
 		c = ci;
-		test = ((!isspace(c)) || c == '\n');
+		test = (!isspace(c) || c == '\n');
 	}
 	if (type == S_TO_WS) {
 		c = c0;
-		test = ((!isspace(c)) || c == '\n');
+		test = (!isspace(c) || c == '\n');
 	}
 	if (type == S_OVER_WS) {
 		c = c0;
-		test = ((isspace(c)));
+		test = isspace(c);
 	}
 	if (type == S_END_PUNCT) {
 		c = ci;
-		test = ((ispunct(c)));
+		test = ispunct(c);
 	}
 	if (type == S_END_ALNUM) {
 		c = ci;
-		test = ((isalnum(c)) || c == '_');
+		test = (isalnum(c) || c == '_');
 	}
 	*tested = c;
 	return test;
@@ -2136,7 +2137,7 @@ static void rawmode(void)
 
 static void cookmode(void)
 {
-	fflush(stdout);
+	fflush_all();
 	tcsetattr_stdin_TCSANOW(&term_orig);
 }
 
@@ -2187,11 +2188,11 @@ static void catch_sig(int sig)
 }
 #endif /* FEATURE_VI_USE_SIGNALS */
 
-static int mysleep(int hund)	// sleep for 'h' 1/100 seconds
+static int mysleep(int hund)	// sleep for 'hund' 1/100 seconds or stdin ready
 {
 	struct pollfd pfd[1];
 
-	pfd[0].fd = 0;
+	pfd[0].fd = STDIN_FILENO;
 	pfd[0].events = POLLIN;
 	return safe_poll(pfd, 1, hund*10) > 0;
 }
@@ -2201,7 +2202,7 @@ static int readit(void) // read (maybe cursor) key from stdin
 {
 	int c;
 
-	fflush(stdout);
+	fflush_all();
 	c = read_key(STDIN_FILENO, readbuffer);
 	if (c == -1) { // EOF/error
 		go_bottom_and_clear_to_eol();
@@ -2335,7 +2336,7 @@ static int file_insert(const char *fn, char *p, int update_ro_status)
 	} else if (cnt < size) {
 		// There was a partial read, shrink unused space text[]
 		p = text_hole_delete(p + cnt, p + (size - cnt) - 1);	// un-do buffer insert
-		status_line_bold("cannot read all of file \"%s\"", fn);
+		status_line_bold("can't read all of file \"%s\"", fn);
 	}
 	if (cnt >= size)
 		file_modified++;
@@ -2555,7 +2556,7 @@ static void show_status_line(void)
 		}
 		place_cursor(crow, ccol, FALSE);	// put cursor back in correct place
 	}
-	fflush(stdout);
+	fflush_all();
 }
 
 //----- format the status buffer, the bottom line of screen ------
@@ -2588,36 +2589,41 @@ static void status_line(const char *format, ...)
 // copy s to buf, convert unprintable
 static void print_literal(char *buf, const char *s)
 {
+	char *d;
 	unsigned char c;
-	char b[2];
 
-	b[1] = '\0';
 	buf[0] = '\0';
 	if (!s[0])
 		s = "(NULL)";
+
+	d = buf;
 	for (; *s; s++) {
 		int c_is_no_print;
 
 		c = *s;
 		c_is_no_print = (c & 0x80) && !Isprint(c);
 		if (c_is_no_print) {
-			strcat(buf, SOn);
+			strcpy(d, SOn);
+			d += sizeof(SOn)-1;
 			c = '.';
 		}
-		if (c < ' ' || c == 127) {
-			strcat(buf, "^");
-			if (c == 127)
+		if (c < ' ' || c == 0x7f) {
+			*d++ = '^';
+			c |= '@'; /* 0x40 */
+			if (c == 0x7f)
 				c = '?';
-			else
-				c += '@';
 		}
-		b[0] = c;
-		strcat(buf, b);
-		if (c_is_no_print)
-			strcat(buf, SOs);
-		if (*s == '\n')
-			strcat(buf, "$");
-		if (strlen(buf) > MAX_INPUT_LEN - 10) // paranoia
+		*d++ = c;
+		*d = '\0';
+		if (c_is_no_print) {
+			strcpy(d, SOs);
+			d += sizeof(SOs)-1;
+		}
+		if (*s == '\n') {
+			*d++ = '$';
+			*d = '\0';
+		}
+		if (d - buf > MAX_INPUT_LEN - 10) // paranoia
 			break;
 	}
 }
@@ -2982,11 +2988,6 @@ static void do_cmd(int c)
 	default:			// unrecognized command
 		buf[0] = c;
 		buf[1] = '\0';
-		if (c < ' ') {
-			buf[0] = '^';
-			buf[1] = c + '@';
-			buf[2] = '\0';
-		}
 		not_implemented(buf);
 		end_cmd_q();	// stop adding to q
 	case 0x00:			// nul- ignore
@@ -3963,7 +3964,7 @@ static void crash_test()
 	if (msg[0]) {
 		printf("\n\n%d: \'%c\' %s\n\n\n%s[Hit return to continue]%s",
 			totalcmds, last_input_char, msg, SOs, SOn);
-		fflush(stdout);
+		fflush_all();
 		while (safe_read(STDIN_FILENO, d, 1) > 0) {
 			if (d[0] == '\n' || d[0] == '\r')
 				break;

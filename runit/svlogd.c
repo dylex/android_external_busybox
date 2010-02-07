@@ -266,18 +266,18 @@ static char* wstrdup(const char *str)
 /* NUL terminated */
 static void fmt_time_human_30nul(char *s)
 {
-	struct tm *t;
+	struct tm *ptm;
 	struct timeval tv;
 
 	gettimeofday(&tv, NULL);
-	t = gmtime(&(tv.tv_sec));
+	ptm = gmtime(&tv.tv_sec);
 	sprintf(s, "%04u-%02u-%02u_%02u:%02u:%02u.%06u000",
-		(unsigned)(1900 + t->tm_year),
-		(unsigned)(t->tm_mon + 1),
-		(unsigned)(t->tm_mday),
-		(unsigned)(t->tm_hour),
-		(unsigned)(t->tm_min),
-		(unsigned)(t->tm_sec),
+		(unsigned)(1900 + ptm->tm_year),
+		(unsigned)(ptm->tm_mon + 1),
+		(unsigned)(ptm->tm_mday),
+		(unsigned)(ptm->tm_hour),
+		(unsigned)(ptm->tm_min),
+		(unsigned)(ptm->tm_sec),
 		(unsigned)(tv.tv_usec)
 	);
 	/* 4+1 + 2+1 + 2+1 + 2+1 + 2+1 + 2+1 + 9 = */
@@ -603,7 +603,7 @@ static void logdir_close(struct logdir *ld)
 	ld->processor = NULL;
 }
 
-static unsigned logdir_open(struct logdir *ld, const char *fn)
+static NOINLINE unsigned logdir_open(struct logdir *ld, const char *fn)
 {
 	char buf[128];
 	unsigned now;
@@ -670,7 +670,7 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 				memRchr = memchr;
 				/* Add '\n'-terminated line to ld->inst */
 				while (1) {
-					int l = asprintf(&new, "%s%s\n", ld->inst ? : "", s);
+					int l = asprintf(&new, "%s%s\n", ld->inst ? ld->inst : "", s);
 					if (l >= 0 && new)
 						break;
 					pause_nomem();
@@ -682,7 +682,7 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 				static const struct suffix_mult km_suffixes[] = {
 					{ "k", 1024 },
 					{ "m", 1024*1024 },
-					{ }
+					{ "", 0 }
 				};
 				ld->sizemax = xatou_sfx(&s[1], km_suffixes);
 				break;
@@ -698,7 +698,7 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 					{ "m", 60 },
 					{ "h", 60*60 },
 					/*{ "d", 24*60*60 },*/
-					{ }
+					{ "", 0 }
 				};
 				ld->rotate_period = xatou_sfx(&s[1], mh_suffixes);
 				if (ld->rotate_period) {
@@ -761,8 +761,8 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 	}
 	while ((ld->fdcur = open("current", O_WRONLY|O_NDELAY|O_APPEND|O_CREAT, 0600)) == -1)
 		pause2cannot("open current", ld->name);
-	/* we presume this cannot fail */
-	ld->filecur = fdopen(ld->fdcur, "a"); ////
+	while ((ld->filecur = fdopen(ld->fdcur, "a")) == NULL)
+		pause2cannot("open current", ld->name); ////
 	setvbuf(ld->filecur, NULL, _IOFBF, linelen); ////
 
 	close_on_exec_on(ld->fdcur);
@@ -1152,7 +1152,7 @@ int svlogd_main(int argc, char **argv)
 			/* Move unprocessed data to the front of line */
 			memmove((timestamp ? line+26 : line), lineptr, stdin_cnt);
 		}
-		fflush(NULL);////
+		fflush_all();////
 	}
 
 	for (i = 0; i < dirn; ++i) {

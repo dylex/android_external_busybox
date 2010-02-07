@@ -75,7 +75,7 @@ static void copy3(uint8_t* ip, const uint8_t* m_pos, unsigned off)
 #define TEST_IP		(ip < ip_end)
 #define TEST_OP		(op <= op_end)
 
-static int lzo1x_optimize(uint8_t *in, unsigned in_len,
+static NOINLINE int lzo1x_optimize(uint8_t *in, unsigned in_len,
 		uint8_t *out, unsigned *out_len,
 		void* wrkmem UNUSED_PARAM)
 {
@@ -598,7 +598,7 @@ static int lzo_get_method(header_t *h)
 /**********************************************************************/
 // compress a file
 /**********************************************************************/
-static smallint lzo_compress(const header_t *h)
+static NOINLINE smallint lzo_compress(const header_t *h)
 {
 	unsigned block_size = LZO_BLOCK_SIZE;
 	int r = 0; /* LZO_E_OK */
@@ -706,7 +706,7 @@ static void lzo_check(uint32_t FAST_FUNC (*fn)(uint32_t, const uint8_t*, unsigne
 /**********************************************************************/
 // decompress a file
 /**********************************************************************/
-static smallint lzo_decompress(const header_t *h)
+static NOINLINE smallint lzo_decompress(const header_t *h)
 {
 	unsigned block_size = LZO_BLOCK_SIZE;
 	int r;

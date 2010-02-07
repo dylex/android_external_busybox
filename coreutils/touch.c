@@ -40,6 +40,9 @@
 int touch_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int touch_main(int argc UNUSED_PARAM, char **argv)
 {
+	int fd;
+	int status = EXIT_SUCCESS;
+	int opts;
 #if ENABLE_DESKTOP
 # if ENABLE_LONG_OPTS
 	static const char touch_longopts[] ALIGN1 =
@@ -49,17 +52,15 @@ int touch_main(int argc UNUSED_PARAM, char **argv)
 		"date\0"              Required_argument "d"
 	;
 # endif
-	struct utimbuf timebuf;
 	char *reference_file = NULL;
 	char *date_str = NULL;
+	struct timeval timebuf[2];
+	timebuf[1].tv_usec = timebuf[0].tv_usec = 0;
 #else
 # define reference_file NULL
 # define date_str       NULL
-# define timebuf        (*(struct utimbuf*)NULL)
+# define timebuf        ((struct timeval*)NULL)
 #endif
-	int fd;
-	int status = EXIT_SUCCESS;
-	int opts;
 
 #if ENABLE_DESKTOP && ENABLE_LONG_OPTS
 	applet_long_options = touch_longopts;
@@ -83,8 +84,7 @@ int touch_main(int argc UNUSED_PARAM, char **argv)
 	if (reference_file) {
 		struct stat stbuf;
 		xstat(reference_file, &stbuf);
-		timebuf.actime = stbuf.st_atime;
-		timebuf.modtime = stbuf.st_mtime;
+		timebuf[1].tv_sec = timebuf[0].tv_sec = stbuf.st_mtime;
 	}
 
 	if (date_str) {
@@ -100,23 +100,21 @@ int touch_main(int argc UNUSED_PARAM, char **argv)
 		tm_time.tm_isdst = -1;	/* Be sure to recheck dst */
 		t = validate_tm_time(date_str, &tm_time);
 
-		timebuf.actime = t;
-		timebuf.modtime = t;
+		timebuf[1].tv_sec = timebuf[0].tv_sec = t;
 	}
 
 	do {
-		if (utime(*argv, reference_file ? &timebuf : NULL)) {
+		if (utimes(*argv, reference_file ? timebuf : NULL) != 0) {
 			if (errno == ENOENT) { /* no such file */
 				if (opts) { /* creation is disabled, so ignore */
 					continue;
 				}
-				/* Try to create the file. */
-				fd = open(*argv, O_RDWR | O_CREAT,
-						  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH
-						  );
-				if ((fd >= 0) && !close(fd)) {
+				/* Try to create the file */
+				fd = open(*argv, O_RDWR | O_CREAT, 0666);
+				if (fd >= 0) {
+					xclose(fd);
 					if (reference_file)
-						utime(*argv, &timebuf);
+						utimes(*argv, timebuf);
 					continue;
 				}
 			}

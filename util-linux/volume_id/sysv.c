@@ -48,7 +48,7 @@ struct sysv_super {
 	uint32_t	s_state;
 	uint32_t	s_magic;
 	uint32_t	s_type;
-} __attribute__((__packed__));
+} PACKED;
 
 #define XENIX_NICINOD				100
 #define XENIX_NICFREE				100
@@ -74,7 +74,7 @@ struct xenix_super {
 	uint8_t		s_fill[371];
 	uint32_t	s_magic;
 	uint32_t	s_type;
-} __attribute__((__packed__));
+} PACKED;
 
 #define SYSV_SUPERBLOCK_BLOCK			0x01
 #define SYSV_MAGIC				0xfd187e20
@@ -82,7 +82,7 @@ struct xenix_super {
 #define XENIX_MAGIC				0x2b5544
 #define SYSV_MAX_BLOCKSIZE			0x800
 
-int volume_id_probe_sysv(struct volume_id *id /*,uint64_t off*/)
+int FAST_FUNC volume_id_probe_sysv(struct volume_id *id /*,uint64_t off*/)
 {
 #define off ((uint64_t)0)
 	struct sysv_super *vs;

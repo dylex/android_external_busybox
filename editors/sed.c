@@ -359,7 +359,8 @@ static int parse_subst_cmd(sed_cmd_t *sed_cmd, const char *substr)
 			continue;
 		}
 		/* Skip spaces */
-		if (isspace(substr[idx])) continue;
+		if (isspace(substr[idx]))
+			continue;
 
 		switch (substr[idx]) {
 		/* Replace all occurrences */
@@ -417,16 +418,15 @@ static const char *parse_cmd_args(sed_cmd_t *sed_cmd, const char *cmdstr)
 	/* handle edit cmds: (a)ppend, (i)nsert, and (c)hange */
 	else if (strchr("aic", sed_cmd->cmd)) {
 		if ((sed_cmd->end_line || sed_cmd->end_match) && sed_cmd->cmd != 'c')
-			bb_error_msg_and_die
-				("only a beginning address can be specified for edit commands");
+			bb_error_msg_and_die("only a beginning address can be specified for edit commands");
 		for (;;) {
 			if (*cmdstr == '\n' || *cmdstr == '\\') {
 				cmdstr++;
 				break;
-			} else if (isspace(*cmdstr))
-				cmdstr++;
-			else
+			}
+			if (!isspace(*cmdstr))
 				break;
+			cmdstr++;
 		}
 		sed_cmd->string = xstrdup(cmdstr);
 		/* "\anychar" -> "anychar" */
@@ -1094,7 +1094,7 @@ static void process_files(void)
 			/* append next_line, read new next_line. */
 			}
 			len = strlen(pattern_space);
-			pattern_space = realloc(pattern_space, len + strlen(next_line) + 2);
+			pattern_space = xrealloc(pattern_space, len + strlen(next_line) + 2);
 			pattern_space[len] = '\n';
 			strcpy(pattern_space + len+1, next_line);
 			last_gets_char = next_gets_char;
@@ -1184,7 +1184,7 @@ static void process_files(void)
 		case 'x': /* Exchange hold and pattern space */
 		{
 			char *tmp = pattern_space;
-			pattern_space = G.hold_space ? : xzalloc(1);
+			pattern_space = G.hold_space ? G.hold_space : xzalloc(1);
 			last_gets_char = '\n';
 			G.hold_space = tmp;
 			break;
@@ -1337,13 +1337,13 @@ int sed_main(int argc UNUSED_PARAM, char **argv)
 			G.outname = xasprintf("%sXXXXXX", argv[i]);
 			nonstdoutfd = mkstemp(G.outname);
 			if (-1 == nonstdoutfd)
-				bb_perror_msg_and_die("cannot create temp file %s", G.outname);
-			G.nonstdout = fdopen(nonstdoutfd, "w");
+				bb_perror_msg_and_die("can't create temp file %s", G.outname);
+			G.nonstdout = xfdopen_for_write(nonstdoutfd);
 
-			/* Set permissions of output file */
-
+			/* Set permissions/owner of output file */
 			fstat(fileno(file), &statbuf);
 			fchmod(nonstdoutfd, statbuf.st_mode);
+			fchown(nonstdoutfd, statbuf.st_uid, statbuf.st_gid);
 			add_input_file(file);
 			process_files();
 			fclose(G.nonstdout);

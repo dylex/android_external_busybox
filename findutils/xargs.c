@@ -279,7 +279,7 @@ static int xargs_ask_confirmation(void)
 
 	tty_stream = xfopen_for_read(CURRENT_TTY);
 	fputs(" ?...", stderr);
-	fflush(stderr);
+	fflush_all();
 	c = savec = getc(tty_stream);
 	while (c != EOF && c != '\n')
 		c = getc(tty_stream);
@@ -426,7 +426,7 @@ int xargs_main(int argc, char **argv)
 			n_chars += strlen(*argv) + 1;
 		}
 		if (n_max_chars < n_chars) {
-			bb_error_msg_and_die("cannot fit single argument within argument list size limit");
+			bb_error_msg_and_die("can't fit single argument within argument list size limit");
 		}
 		n_max_chars -= n_chars;
 	} else {

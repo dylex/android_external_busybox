@@ -152,7 +152,7 @@ enum {
 /* Debug: squirt whatever message and sleep a bit so we can see it go by. */
 /* Beware: writes to stdOUT... */
 #if 0
-#define Debug(...) do { printf(__VA_ARGS__); printf("\n"); fflush(stdout); sleep(1); } while (0)
+#define Debug(...) do { printf(__VA_ARGS__); printf("\n"); fflush_all(); sleep(1); } while (0)
 #else
 #define Debug(...) do { } while (0)
 #endif
@@ -340,16 +340,29 @@ create new one, and bind() it. TODO */
 			rr = accept(netfd, &remend.u.sa, &remend.len);
 			if (rr < 0)
 				bb_perror_msg_and_die("accept");
-			if (themaddr && memcmp(&remend.u.sa, &themaddr->u.sa, remend.len) != 0) {
-				/* nc 1.10 bails out instead, and its error message
-				 * is not suppressed by o_verbose */
-				if (o_verbose) {
-					char *remaddr = xmalloc_sockaddr2dotted(&remend.u.sa);
-					bb_error_msg("connect from wrong ip/port %s ignored", remaddr);
-					free(remaddr);
+			if (themaddr) {
+				int sv_port, port, r;
+
+				sv_port = get_nport(&remend.u.sa); /* save */
+				port = get_nport(&themaddr->u.sa);
+				if (port == 0) {
+					/* "nc -nl -p LPORT RHOST" (w/o RPORT!):
+					 * we should accept any remote port */
+					set_nport(&remend, 0); /* blot out remote port# */
 				}
-				close(rr);
-				goto again;
+				r = memcmp(&remend.u.sa, &themaddr->u.sa, remend.len);
+				set_nport(&remend, sv_port); /* restore */
+				if (r != 0) {
+					/* nc 1.10 bails out instead, and its error message
+					 * is not suppressed by o_verbose */
+					if (o_verbose) {
+						char *remaddr = xmalloc_sockaddr2dotted(&remend.u.sa);
+						bb_error_msg("connect from wrong ip/port %s ignored", remaddr);
+						free(remaddr);
+					}
+					close(rr);
+					goto again;
+				}
 			}
 			unarm();
 		} else
@@ -673,7 +686,7 @@ Debug("wrote %d to net, errno %d", rr, errno);
 
 /* main: now we pull it all together... */
 int nc_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int nc_main(int argc, char **argv)
+int nc_main(int argc UNUSED_PARAM, char **argv)
 {
 	char *str_p, *str_s;
 	IF_NC_EXTRA(char *str_i, *str_o;)
@@ -702,7 +715,6 @@ int nc_main(int argc, char **argv)
 	while (*++proggie) {
 		if (strcmp(*proggie, "-e") == 0) {
 			*proggie = NULL;
-			argc = proggie - argv;
 			proggie++;
 			goto e_found;
 		}

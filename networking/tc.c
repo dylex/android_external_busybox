@@ -89,7 +89,7 @@ static int get_qdisc_handle(__u32 *h, const char *str) {
 	if (p == str)
 		return 1;
 	maj <<= 16;
-	if (*p != ':' && *p!=0)
+	if (*p != ':' && *p != '\0')
 		return 1;
  ok:
 	*h = maj;
@@ -119,7 +119,8 @@ static int get_tc_classid(__u32 *h, const char *str) {
 		maj <<= 16;
 		str = p + 1;
 		min = strtoul(str, &p, 16);
-		if (*p != 0 || min >= (1<<16))
+//FIXME: check for "" too?
+		if (*p != '\0' || min >= (1<<16))
 			return 1;
 		maj |= min;
 	} else if (*p != 0)
@@ -190,8 +191,8 @@ static int cbq_print_opt(struct rtattr *opt)
 	struct tc_cbq_wrropt *wrr = NULL;
 	struct tc_cbq_fopt *fopt = NULL;
 	struct tc_cbq_ovl *ovl = NULL;
-	const char * const error = "CBQ: too short %s opt";
-	RESERVE_CONFIG_BUFFER(buf, 64);
+	const char *const error = "CBQ: too short %s opt";
+	char buf[64];
 
 	if (opt == NULL)
 		goto done;
@@ -271,7 +272,6 @@ static int cbq_print_opt(struct rtattr *opt)
 		}
 	}
  done:
-	RELEASE_CONFIG_BUFFER(buf);
 	return 0;
 }
 
@@ -530,7 +530,7 @@ int tc_main(int argc UNUSED_PARAM, char **argv)
 		if (rtnl_dump_request(&rth, obj == OBJ_qdisc ? RTM_GETQDISC :
 						obj == OBJ_class ? RTM_GETTCLASS : RTM_GETTFILTER,
 						&msg, sizeof(msg)) < 0)
-			bb_simple_perror_msg_and_die("cannot send dump request");
+			bb_simple_perror_msg_and_die("can't send dump request");
 
 		xrtnl_dump_filter(&rth, obj == OBJ_qdisc ? print_qdisc :
 						obj == OBJ_class ? print_class : print_filter,

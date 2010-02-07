@@ -117,6 +117,17 @@ config FEATURE_FTP_WRITE
 	help
 	  Enable all kinds of FTP upload commands (-w option)
 
+config FEATURE_FTPD_ACCEPT_BROKEN_LIST
+	bool "Enable workaround for RFC-violating clients"
+	default y
+	depends on FTPD
+	help
+	  Some ftp-clients (among them KDE's Konqueror) issue illegal
+	  "LIST -la" requests. This option works around those problems.
+	  It might prevent you from listing files starting with "-" and
+	  it increases the code size by ~40 bytes.
+	  Most other ftp servers seem to behave similar to this.
+
 config FTPGET
 	bool "ftpget"
 	default n
@@ -661,6 +672,20 @@ config NSLOOKUP
 	help
 	  nslookup is a tool to query Internet name servers.
 
+config NTPD
+	bool "ntpd"
+	default n
+	help
+	  The NTP client/server daemon.
+
+config FEATURE_NTPD_SERVER
+        bool "Make ntpd usable as a NTP server"
+        default y
+        depends on NTPD
+        help
+	  Make ntpd usable as a NTP server. If you disable this option
+	  ntpd will be usable only as a NTP client.
+
 config PING
 	bool "ping"
 	default n
@@ -788,6 +813,27 @@ config FEATURE_TELNETD_STANDALONE
 	help
 	  Selecting this will make telnetd able to run standalone.
 
+config FEATURE_TELNETD_INETD_WAIT
+	bool "Support -w SEC option (inetd wait mode)"
+	default n
+	depends on FEATURE_TELNETD_STANDALONE
+	help
+	  This option allows you to run telnetd in "inet wait" mode.
+	  Example inetd.conf line (note "wait", not usual "nowait"):
+
+	  telnet stream tcp wait root /bin/telnetd telnetd -w10
+
+	  In this example, inetd passes _listening_ socket_ as fd 0
+	  to telnetd when connection appears.
+	  telnetd will wait for connections until all existing
+	  connections are closed, and no new connections
+	  appear during 10 seconds. Then it exits, and inetd continues
+	  to listen for new connections.
+
+	  This option is rarely used. "tcp nowait" is much more usual
+	  way of running tcp services, including telnetd.
+	  You most probably want to say N here.
+
 config TFTP
 	bool "tftp"
 	default n
@@ -825,12 +871,19 @@ config FEATURE_TFTP_PUT
 	  Also enable download support in tftpd, if tftpd is selected.
 
 config FEATURE_TFTP_BLOCKSIZE
-	bool "Enable \"blksize\" protocol option"
+	bool "Enable 'blksize' and 'tsize' protocol options"
 	default n
 	depends on TFTP || TFTPD
 	help
 	  Allow tftp to specify block size, and tftpd to understand
-	  "blksize" option.
+	  "blksize" and "tsize" options.
+
+config FEATURE_TFTP_PROGRESS_BAR
+	bool "Enable tftp progress meter"
+	default n
+	depends on TFTP && FEATURE_TFTP_BLOCKSIZE
+	help
+	  Show progress bar.
 
 config TFTP_DEBUG
 	bool "Enable debug"
@@ -845,6 +898,13 @@ config TRACEROUTE
 	default n
 	help
 	  Utility to trace the route of IP packets.
+
+config TRACEROUTE6
+	bool "traceroute6"
+	default n
+	depends on FEATURE_IPV6 && TRACEROUTE
+	help
+	  Utility to trace the route of IPv6 packets.
 
 config FEATURE_TRACEROUTE_VERBOSE
 	bool "Enable verbose output"
@@ -874,7 +934,7 @@ source networking/udhcp/Config.in
 config IFUPDOWN_UDHCPC_CMD_OPTIONS
 	string "ifup udhcpc command line options"
 	default "-R -n"
-	depends on IFUPDOWN && APP_UDHCPC
+	depends on IFUPDOWN && UDHCPC
 	help
 	  Command line options to pass to udhcpc from ifup.
 	  Intended to alter options not available in /etc/network/interfaces.

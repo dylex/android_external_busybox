@@ -81,6 +81,7 @@ int FAST_FUNC update_passwd(const char *filename,
 	FILE *new_fp;
 	char *fnamesfx;
 	char *sfx_char;
+	char *name_colon;
 	unsigned user_len;
 	int old_fd;
 	int new_fd;
@@ -103,15 +104,18 @@ int FAST_FUNC update_passwd(const char *filename,
 	/* New passwd file, "/etc/passwd+" for now */
 	fnamesfx = xasprintf("%s+", filename);
 	sfx_char = &fnamesfx[strlen(fnamesfx)-1];
-	name = xasprintf("%s:", name);
-	user_len = strlen(name);
+	name_colon = xasprintf("%s:", name);
+	user_len = strlen(name_colon);
 
 	if (shadow)
 		old_fp = fopen(filename, "r+");
 	else
 		old_fp = fopen_or_warn(filename, "r+");
-	if (!old_fp)
+	if (!old_fp) {
+		if (shadow)
+			ret = 0; /* missing shadow is not an error */
 		goto free_mem;
+	}
 	old_fd = fileno(old_fp);
 
 	selinux_preserve_fcontext(old_fd);
@@ -134,12 +138,7 @@ int FAST_FUNC update_passwd(const char *filename,
 		fchown(new_fd, sb.st_uid, sb.st_gid);
 	}
 	errno = 0;
-	new_fp = fdopen(new_fd, "w");
-	if (!new_fp) {
-		bb_perror_nomsg();
-		close(new_fd);
-		goto unlink_new;
-	}
+	new_fp = xfdopen_for_write(new_fd);
 
 	/* Backup file is "/etc/passwd-" */
 	*sfx_char = '-';
@@ -168,7 +167,7 @@ int FAST_FUNC update_passwd(const char *filename,
 		line = xmalloc_fgetline(old_fp);
 		if (!line) /* EOF/error */
 			break;
-		if (strncmp(name, line, user_len) != 0) {
+		if (strncmp(name_colon, line, user_len) != 0) {
 			fprintf(new_fp, "%s\n", line);
 			goto next;
 		}
@@ -227,11 +226,11 @@ int FAST_FUNC update_passwd(const char *filename,
 				/* move past old change date */
 				cp = strchrnul(cp + 1, ':');
 				/* "name:" + "new_passwd" + ":" + "change date" + ":rest of line" */
-				fprintf(new_fp, "%s%s:%u%s\n", name, new_passwd,
+				fprintf(new_fp, "%s%s:%u%s\n", name_colon, new_passwd,
 					(unsigned)(time(NULL)) / (24*60*60), cp);
 			} else {
 				/* "name:" + "new_passwd" + ":rest of line" */
-				fprintf(new_fp, "%s%s%s\n", name, new_passwd, cp);
+				fprintf(new_fp, "%s%s%s\n", name_colon, new_passwd, cp);
 			}
 			changed_lines++;
 		} /* else delete user or group: skip the line */
@@ -240,15 +239,19 @@ int FAST_FUNC update_passwd(const char *filename,
 	}
 
 	if (changed_lines == 0) {
-#if ENABLE_FEATURE_DEL_USER_FROM_GROUP
-		if (member)
-			bb_error_msg("can't find %s in %s", member, filename);
+#if ENABLE_FEATURE_ADDUSER_TO_GROUP || ENABLE_FEATURE_DEL_USER_FROM_GROUP
+		if (member) {
+			if (ENABLE_ADDGROUP && applet_name[0] == 'a')
+				bb_error_msg("can't find %s in %s", name, filename);
+			if (ENABLE_DELGROUP && applet_name[0] == 'd')
+				bb_error_msg("can't find %s in %s", member, filename);
+		}
 #endif
 		if ((ENABLE_ADDUSER || ENABLE_ADDGROUP)
 		 && applet_name[0] == 'a' && !member
 		) {
 			/* add user or group */
-			fprintf(new_fp, "%s%s\n", name, new_passwd);
+			fprintf(new_fp, "%s%s\n", name_colon, new_passwd);
 			changed_lines++;
 		}
 	}
@@ -277,6 +280,6 @@ int FAST_FUNC update_passwd(const char *filename,
  free_mem:
 	free(fnamesfx);
 	free((char *)filename);
-	free((char *)name);
+	free(name_colon);
 	return ret;
 }

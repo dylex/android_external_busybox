@@ -98,22 +98,22 @@ int FAST_FUNC bbunpack(char **argv,
 		status = unpacker(&info);
 		if (status < 0)
 			exitcode = 1;
+		xclose(STDOUT_FILENO); /* with error check! */
 
 		if (filename) {
 			char *del = new_name;
 			if (status >= 0) {
 				/* TODO: restore other things? */
 				if (info.mtime) {
-					struct utimbuf times;
+					struct timeval times[2];
 
-					times.actime = info.mtime;
-					times.modtime = info.mtime;
-					/* Close first.
-					 * On some systems calling utime
-					 * then closing resets the mtime. */
-					close(STDOUT_FILENO);
-					/* Ignoring errors */
-					utime(new_name, &times);
+					times[1].tv_sec = times[0].tv_sec = info.mtime;
+					times[1].tv_usec = times[0].tv_usec = 0;
+					/* Note: we closed it first.
+					 * On some systems calling utimes
+					 * then closing resets the mtime
+					 * back to current time. */
+					utimes(new_name, times); /* ignoring errors */
 				}
 
 				/* Delete _compressed_ file */

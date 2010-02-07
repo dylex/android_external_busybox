@@ -119,29 +119,23 @@ struct globals {
 
 static int run_script(const char *action)
 {
-	pid_t pid;
+	char *argv[5];
 	int r;
 
 	bb_error_msg("executing '%s %s %s'", G.script_name, G.iface, action);
 
 #if 1
-	pid = vfork();
-	if (pid < 0) {
-		bb_perror_msg("fork");
-		return -1;
-	}
 
-	if (pid == 0) {
-		/* child */
-		execlp(G.script_name, G.script_name, G.iface, action, G.extra_arg, NULL);
-		bb_perror_msg_and_die("can't execute '%s'", G.script_name);
-	}
+	argv[0] = (char*) G.script_name;
+	argv[1] = (char*) G.iface;
+	argv[2] = (char*) action;
+	argv[3] = (char*) G.extra_arg;
+	argv[4] = NULL;
 
-	/* parent */
-	wait(&r);
-	r = WEXITSTATUS(r);
+	/* r < 0 - can't exec, 0 <= r < 1000 - exited, >1000 - killed by sig (r-1000) */
+	r = wait4pid(spawn(argv));
 
-	bb_error_msg("exit code: %u", r);
+	bb_error_msg("exit code: %d", r);
 	return (option_mask32 & FLAG_IGNORE_RETVAL) ? 0 : r;
 
 #else /* insanity */
@@ -216,9 +210,12 @@ static int run_script(const char *action)
 #endif
 }
 
-static int network_ioctl(int request, void* data)
+static int network_ioctl(int request, void* data, const char *errmsg)
 {
-	return ioctl(ioctl_fd, request, data);
+	int r = ioctl(ioctl_fd, request, data);
+	if (r < 0 && errmsg)
+		bb_perror_msg(errmsg);
+	return r;
 }
 
 static void set_ifreq_to_ifname(struct ifreq *ifreq)
@@ -242,8 +239,7 @@ static void up_iface(void)
 		return;
 
 	set_ifreq_to_ifname(&ifrequest);
-	if (network_ioctl(SIOCGIFFLAGS, &ifrequest) < 0) {
-		bb_perror_msg("can't %cet interface flags", 'g');
+	if (network_ioctl(SIOCGIFFLAGS, &ifrequest, "can't get interface flags") < 0) {
 		G.iface_exists = 0;
 		return;
 	}
@@ -252,24 +248,19 @@ static void up_iface(void)
 		ifrequest.ifr_flags |= IFF_UP;
 		/* Let user know we mess up with interface */
 		bb_error_msg("upping interface");
-		if (network_ioctl(SIOCSIFFLAGS, &ifrequest) < 0)
-			bb_perror_msg_and_die("can't %cet interface flags", 's');
+		if (network_ioctl(SIOCSIFFLAGS, &ifrequest, "can't set interface flags") < 0)
+			xfunc_die();
 	}
 
 #if 0 /* why do we mess with IP addr? It's not our business */
-	if (network_ioctl(SIOCGIFADDR, &ifrequest) < 0) {
-		bb_error_msg("can't get interface address");
+	if (network_ioctl(SIOCGIFADDR, &ifrequest, "can't get interface address") < 0) {
 	} else if (ifrequest.ifr_addr.sa_family != AF_INET) {
 		bb_perror_msg("the interface is not IP-based");
 	} else {
 		((struct sockaddr_in*)(&ifrequest.ifr_addr))->sin_addr.s_addr = INADDR_ANY;
-		if (network_ioctl(SIOCSIFADDR, &ifrequest) < 0)
-			bb_perror_msg("can't set interface address");
+		network_ioctl(SIOCSIFADDR, &ifrequest, "can't set interface address");
 	}
-	if (network_ioctl(SIOCGIFFLAGS, &ifrequest) < 0) {
-		bb_perror_msg("can't get interface flags");
-		return;
-	}
+	network_ioctl(SIOCGIFFLAGS, &ifrequest, "can't get interface flags");
 #endif
 }
 
@@ -285,13 +276,13 @@ static void maybe_up_new_iface(void)
 	set_ifreq_to_ifname(&ifrequest);
 	driver_info.cmd = ETHTOOL_GDRVINFO;
 	ifrequest.ifr_data = &driver_info;
-	if (network_ioctl(SIOCETHTOOL, &ifrequest) == 0) {
+	if (network_ioctl(SIOCETHTOOL, &ifrequest, NULL) == 0) {
 		char buf[sizeof("/xx:xx:xx:xx:xx:xx")];
 
 		/* Get MAC */
 		buf[0] = '\0';
 		set_ifreq_to_ifname(&ifrequest);
-		if (network_ioctl(SIOCGIFHWADDR, &ifrequest) == 0) {
+		if (network_ioctl(SIOCGIFHWADDR, &ifrequest, NULL) == 0) {
 			sprintf(buf, "/%02X:%02X:%02X:%02X:%02X:%02X",
 				(uint8_t)(ifrequest.ifr_hwaddr.sa_data[0]),
 				(uint8_t)(ifrequest.ifr_hwaddr.sa_data[1]),
@@ -316,15 +307,13 @@ static smallint detect_link_mii(void)
 
 	set_ifreq_to_ifname(&ifreq);
 
-	if (network_ioctl(SIOCGMIIPHY, &ifreq) < 0) {
-		bb_perror_msg("SIOCGMIIPHY failed");
+	if (network_ioctl(SIOCGMIIPHY, &ifreq, "SIOCGMIIPHY failed") < 0) {
 		return IFSTATUS_ERR;
 	}
 
 	mii->reg_num = 1;
 
-	if (network_ioctl(SIOCGMIIREG, &ifreq) < 0) {
-		bb_perror_msg("SIOCGMIIREG failed");
+	if (network_ioctl(SIOCGMIIREG, &ifreq, "SIOCGMIIREG failed") < 0) {
 		return IFSTATUS_ERR;
 	}
 
@@ -338,15 +327,13 @@ static smallint detect_link_priv(void)
 
 	set_ifreq_to_ifname(&ifreq);
 
-	if (network_ioctl(SIOCDEVPRIVATE, &ifreq) < 0) {
-		bb_perror_msg("SIOCDEVPRIVATE failed");
+	if (network_ioctl(SIOCDEVPRIVATE, &ifreq, "SIOCDEVPRIVATE failed") < 0) {
 		return IFSTATUS_ERR;
 	}
 
 	mii->reg_num = 1;
 
-	if (network_ioctl(SIOCDEVPRIVATE+1, &ifreq) < 0) {
-		bb_perror_msg("SIOCDEVPRIVATE+1 failed");
+	if (network_ioctl(SIOCDEVPRIVATE+1, &ifreq, "SIOCDEVPRIVATE+1 failed") < 0) {
 		return IFSTATUS_ERR;
 	}
 
@@ -361,10 +348,9 @@ static smallint detect_link_ethtool(void)
 	set_ifreq_to_ifname(&ifreq);
 
 	edata.cmd = ETHTOOL_GLINK;
-	ifreq.ifr_data = &edata;
+	ifreq.ifr_data = (void*) &edata;
 
-	if (network_ioctl(SIOCETHTOOL, &ifreq) < 0) {
-		bb_perror_msg("ETHTOOL_GLINK failed");
+	if (network_ioctl(SIOCETHTOOL, &ifreq, "ETHTOOL_GLINK failed") < 0) {
 		return IFSTATUS_ERR;
 	}
 
@@ -377,10 +363,18 @@ static smallint detect_link_iff(void)
 
 	set_ifreq_to_ifname(&ifreq);
 
-	if (network_ioctl(SIOCGIFFLAGS, &ifreq) < 0) {
-		bb_perror_msg("SIOCGIFFLAGS failed");
+	if (network_ioctl(SIOCGIFFLAGS, &ifreq, "SIOCGIFFLAGS failed") < 0) {
 		return IFSTATUS_ERR;
 	}
+
+	/* If IFF_UP is not set (interface is down), IFF_RUNNING is never set
+	 * regardless of link status. Simply continue to report last status -
+	 * no point in reporting spurious link downs if interface is disabled
+	 * by admin. When/if it will be brought up,
+	 * we'll report real link status.
+	 */
+	if (!(ifreq.ifr_flags & IFF_UP) && G.iface_last_status != IFSTATUS_ERR)
+		return G.iface_last_status;
 
 	return (ifreq.ifr_flags & IFF_RUNNING) ? IFSTATUS_UP : IFSTATUS_DOWN;
 }
@@ -393,8 +387,7 @@ static smallint detect_link_wlan(void)
 	memset(&iwrequest, 0, sizeof(struct iwreq));
 	strncpy_IFNAMSIZ(iwrequest.ifr_ifrn.ifrn_name, G.iface);
 
-	if (network_ioctl(SIOCGIWAP, &iwrequest) < 0) {
-		bb_perror_msg("SIOCGIWAP failed");
+	if (network_ioctl(SIOCGIWAP, &iwrequest, "SIOCGIWAP failed") < 0) {
 		return IFSTATUS_ERR;
 	}
 
@@ -475,15 +468,12 @@ static smallint detect_link(void)
 	if (!G.iface_exists)
 		return (option_mask32 & FLAG_MONITOR) ? IFSTATUS_DOWN : IFSTATUS_ERR;
 
-#if 0
-/* Why? This behavior makes it hard to temporary down the iface.
- * It makes a bit more sense to do only in maybe_up_new_iface.
- * OTOH, maybe detect_link_wlan needs this. Then it should be done
- * _only_ there.
- */
+	/* Some drivers can't detect link status when the interface is down.
+	 * I imagine detect_link_iff() is the most vulnerable.
+	 * That's why -a "noauto" in an option, not a hardwired behavior.
+	 */
 	if (!(option_mask32 & FLAG_NO_AUTO))
 		up_iface();
-#endif
 
 	status = G.detect_link_func();
 	if (status == IFSTATUS_ERR) {
@@ -628,6 +618,7 @@ int ifplugd_main(int argc UNUSED_PARAM, char **argv)
 	opts = getopt32(argv, OPTION_STR,
 		&G.iface, &G.script_name, &G.poll_time, &G.delay_up,
 		&G.delay_down, &G.api_mode, &G.extra_arg);
+	G.poll_time *= 1000;
 
 	applet_name = xasprintf("ifplugd(%s)", G.iface);
 
@@ -697,7 +688,7 @@ int ifplugd_main(int argc UNUSED_PARAM, char **argv)
 	if (opts & FLAG_MONITOR) {
 		struct ifreq ifrequest;
 		set_ifreq_to_ifname(&ifrequest);
-		G.iface_exists = (network_ioctl(SIOCGIFINDEX, &ifrequest) == 0);
+		G.iface_exists = (network_ioctl(SIOCGIFINDEX, &ifrequest, NULL) == 0);
 	}
 
 	if (G.iface_exists)
@@ -752,7 +743,7 @@ int ifplugd_main(int argc UNUSED_PARAM, char **argv)
 
 		if (poll(netlink_pollfd,
 				(opts & FLAG_MONITOR) ? 1 : 0,
-				G.poll_time * 1000
+				G.poll_time
 			) < 0
 		) {
 			if (errno == EINTR)

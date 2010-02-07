@@ -46,13 +46,13 @@
 #endif
 
 #if ENABLE_PING6
-#include <netinet/icmp6.h>
+# include <netinet/icmp6.h>
 /* I see RENUMBERED constants in bits/in.h - !!?
  * What a fuck is going on with libc? Is it a glibc joke? */
-#ifdef IPV6_2292HOPLIMIT
-#undef IPV6_HOPLIMIT
-#define IPV6_HOPLIMIT IPV6_2292HOPLIMIT
-#endif
+# ifdef IPV6_2292HOPLIMIT
+#  undef IPV6_HOPLIMIT
+#  define IPV6_HOPLIMIT IPV6_2292HOPLIMIT
+# endif
 #endif
 
 enum {
@@ -178,7 +178,7 @@ static void ping6(len_and_sockaddr *lsa)
 				bb_perror_msg("recvfrom");
 			continue;
 		}
-		if (c >= 8) {			/* icmp6_hdr */
+		if (c >= ICMP_MINLEN) {			/* icmp6_hdr */
 			pkt = (struct icmp6_hdr *) packet;
 			if (pkt->icmp6_type == ICMP6_ECHO_REPLY)
 				break;
@@ -508,7 +508,7 @@ static void unpack_tail(int sz, uint32_t *tp,
 	if (tp)
 		printf(" time=%u.%03u ms", triptime / 1000, triptime % 1000);
 	puts(dupmsg);
-	fflush(stdout);
+	fflush_all();
 }
 static void unpack4(char *buf, int sz, struct sockaddr_in *from)
 {

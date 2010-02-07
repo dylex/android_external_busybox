@@ -503,7 +503,7 @@ static void inflate_codes_setup(STATE_PARAM unsigned my_bl, unsigned my_bd)
 	md = mask_bits[bd];
 }
 /* called once from inflate_get_next_window */
-static int inflate_codes(STATE_PARAM_ONLY)
+static NOINLINE int inflate_codes(STATE_PARAM_ONLY)
 {
 	unsigned e;	/* table entry flag/number of extra bits */
 	huft_t *t;	/* pointer to table entry */
@@ -1117,7 +1117,7 @@ static int check_header_gzip(STATE_PARAM unpack_info_t *info)
 			uint32_t mtime;
 			uint8_t xtra_flags_UNUSED;
 			uint8_t os_flags_UNUSED;
-		} __attribute__((packed)) formatted;
+		} PACKED formatted;
 	} header;
 	struct BUG_header {
 		char BUG_header[sizeof(header) == 8 ? 1 : -1];

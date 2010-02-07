@@ -111,7 +111,7 @@ static void make_device(char *path, int delete)
 {
 	char *device_name;
 	int major, minor, type, len;
-	int mode;
+	mode_t mode;
 	parser_t *parser;
 
 	/* Try to read major/minor string.  Note that the kernel puts \n after
@@ -246,10 +246,11 @@ static void make_device(char *path, int delete)
 
 			/* 2nd field: uid:gid - device ownership */
 			if (get_uidgid(&ugid, tokens[1], 1) == 0)
-				bb_error_msg("unknown user/group %s", tokens[1]);
+				bb_error_msg("unknown user/group %s on line %d", tokens[1], parser->lineno);
 
 			/* 3rd field: mode - device permissions */
-			mode = strtoul(tokens[2], NULL, 8);
+			/* mode = strtoul(tokens[2], NULL, 8); */
+			bb_parse_mode(tokens[2], &mode);
 
 			val = tokens[3];
 			/* 4th field (opt): >|=alias */
@@ -330,7 +331,7 @@ static void make_device(char *path, int delete)
 
 			if (!delete && major >= 0) {
 				if (mknod(node_name, mode | type, makedev(major, minor)) && errno != EEXIST)
-					bb_perror_msg_and_die("mknod %s", node_name);
+					bb_perror_msg("can't create %s", node_name);
 				if (major == root_major && minor == root_minor)
 					symlink(node_name, "root");
 				if (ENABLE_FEATURE_MDEV_CONF) {
@@ -526,6 +527,9 @@ int mdev_main(int argc UNUSED_PARAM, char **argv)
 		char *seq;
 		char *action;
 		char *env_path;
+		static const char keywords[] ALIGN1 = "remove\0add\0";
+		enum { OP_remove = 0, OP_add };
+		smalluint op;
 
 		/* Hotplug:
 		 * env ACTION=... DEVPATH=... SUBSYSTEM=... [SEQNUM=...] mdev
@@ -538,7 +542,7 @@ int mdev_main(int argc UNUSED_PARAM, char **argv)
 		if (!action || !env_path /*|| !subsystem*/)
 			bb_show_usage();
 		fw = getenv("FIRMWARE");
-
+		op = index_in_strings(keywords, action);
 		/* If it exists, does /dev/mdev.seq match $SEQNUM?
 		 * If it does not match, earlier mdev is running
 		 * in parallel, and we need to wait */
@@ -565,14 +569,14 @@ int mdev_main(int argc UNUSED_PARAM, char **argv)
 		}
 
 		snprintf(temp, PATH_MAX, "/sys%s", env_path);
-		if (strcmp(action, "remove") == 0) {
+		if (op == OP_remove) {
 			/* Ignoring "remove firmware". It was reported
 			 * to happen and to cause erroneous deletion
 			 * of device nodes. */
 			if (!fw)
 				make_device(temp, 1);
 		}
-		else if (strcmp(action, "add") == 0) {
+		else if (op == OP_add) {
 			make_device(temp, 0);
 			if (ENABLE_FEATURE_MDEV_LOAD_FIRMWARE) {
 				if (fw)
