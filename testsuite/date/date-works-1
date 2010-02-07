@@ -4,7 +4,7 @@ test x"$dt" = x"01:02:00"
 dt=`busybox date -d 1:2:3 +%T`
 test x"$dt" = x"01:02:03"
 
-host_date=/bin/date
+host_date=/system/bin/date
 
 # date (GNU coreutils) 6.10 reports:
 #	date: invalid date '1.2-3:4'

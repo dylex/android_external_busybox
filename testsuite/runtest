@@ -147,7 +147,7 @@ for applet in $applets; do
 		fi
 #		echo "Running test $tsdir/$applet.tests"
 		PATH="$LINKSDIR:$tsdir:$bindir:$PATH" \
-			"$tsdir/$applet.tests" || status=1
+			sh "$tsdir/$applet.tests" || status=1
 	fi
 done
 
