@@ -105,7 +105,7 @@ static int print_host(const char *hostname, const char *header)
 #endif
 	}
 	if (ENABLE_FEATURE_CLEAN_UP)
-		freeaddrinfo(result);
+		if (result) freeaddrinfo(result);
 	return (rc != 0);
 }
 

@@ -286,7 +286,7 @@ IF_NOT_FEATURE_IPV6(sa_family_t af = AF_INET;)
  set_port:
 	set_nport(r, htons(port));
  ret:
-	freeaddrinfo(result);
+	if (result) freeaddrinfo(result);
 	return r;
 }
 #if !ENABLE_FEATURE_IPV6

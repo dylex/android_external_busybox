@@ -175,7 +175,7 @@ int FAST_FUNC INET6_resolve(const char *name, struct sockaddr_in6 *sin6)
 		return -1;
 	}
 	memcpy(sin6, ai->ai_addr, sizeof(struct sockaddr_in6));
-	freeaddrinfo(ai);
+	if (ai) freeaddrinfo(ai);
 	return 0;
 }
 
