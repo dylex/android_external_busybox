@@ -1,20 +1,29 @@
-LOCAL_PATH:= $(call my-dir)
+LOCAL_PATH := $(call my-dir)
+
+# Make a static library for clearsilver's regex. This prevents multiple
+# symbol definition error.
 include $(CLEAR_VARS)
+LOCAL_SRC_FILES := ../clearsilver/util/regex/regex.c
+LOCAL_MODULE := libclearsilverregex
+LOCAL_C_INCLUDES := \
+	external/clearsilver \
+	external/clearsilver/util/regex
+include $(BUILD_STATIC_LIBRARY)
+
 
 KERNEL_MODULES_DIR?=/system/modules/lib/modules
 
-LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
-	../clearsilver/util/regex/regex.c \
+BUSYBOX_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
 	libbb/android.c
 
-LOCAL_C_INCLUDES := \
+BUSYBOX_C_INCLUDES := \
 	$(LOCAL_PATH)/include $(LOCAL_PATH)/libbb \
 	external/clearsilver \
 	external/clearsilver/util/regex \
 	bionic/libc/private \
 	libc/kernel/common
 
-LOCAL_CFLAGS := \
+BUSYBOX_CFLAGS := \
 	-std=gnu99 \
 	-Werror=implicit \
 	-DNDEBUG \
@@ -23,15 +32,20 @@ LOCAL_CFLAGS := \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
 	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
 
+
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := $(BUSYBOX_SRC_FILES)
+LOCAL_C_INCLUDES := $(BUSYBOX_C_INCLUDES)
+LOCAL_CFLAGS := $(BUSYBOX_CFLAGS)
 LOCAL_MODULE := busybox
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
-
+LOCAL_STATIC_LIBRARIES += libclearsilverregex
 include $(BUILD_EXECUTABLE)
 
-links := $(shell cat $(LOCAL_PATH)/busybox.links)
+BUSYBOX_LINKS := $(shell cat $(LOCAL_PATH)/busybox.links)
 # nc is provided by external/netcat
 exclude := nc
-SYMLINKS := $(addprefix $(TARGET_OUT_OPTIONAL_EXECUTABLES)/,$(filter-out $(exclude),$(notdir $(links))))
+SYMLINKS := $(addprefix $(TARGET_OUT_OPTIONAL_EXECUTABLES)/,$(filter-out $(exclude),$(notdir $(BUSYBOX_LINKS))))
 $(SYMLINKS): BUSYBOX_BINARY := $(LOCAL_MODULE)
 $(SYMLINKS): $(LOCAL_INSTALLED_MODULE)
 	@echo "Symlink: $@ -> $(BUSYBOX_BINARY)"
@@ -45,3 +59,20 @@ ALL_DEFAULT_INSTALLED_MODULES += $(SYMLINKS)
 # local module name
 ALL_MODULES.$(LOCAL_MODULE).INSTALLED := \
     $(ALL_MODULES.$(LOCAL_MODULE).INSTALLED) $(SYMLINKS)
+
+
+# Build a static busybox for the recovery image
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := $(BUSYBOX_SRC_FILES)
+LOCAL_C_INCLUDES := $(BUSYBOX_C_INCLUDES)
+LOCAL_CFLAGS := $(BUSYBOX_CFLAGS)
+LOCAL_MODULE_CLASS := RECOVERY_EXECUTABLES
+LOCAL_MODULE := recovery_busybox
+LOCAL_MODULE_STEM := busybox
+LOCAL_FORCE_STATIC_EXECUTABLE := true
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/sbin
+LOCAL_STATIC_LIBRARIES += libclearsilverregex libcutils libc libm 
+LOCAL_UNSTRIPPED_PATH := $(TARGET_OUT_UNSTRIPPED)/recovery/bin
+ADDITIONAL_RECOVERY_EXECUTABLES += recovery_busybox
+include $(BUILD_EXECUTABLE)
