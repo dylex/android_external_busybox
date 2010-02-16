@@ -92,30 +92,3 @@ LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_STATIC_LIBRARIES += libc libm libclearsilverregex
 
 include $(BUILD_EXECUTABLE)
-
-links := $(shell cat $(LOCAL_PATH)/busybox.links)
-recovery_busybox_root := $(call intermediates-dir-for,EXECUTABLES,recoverybusybox)/recovery/root
-exclude :=
-SYMLINKS := $(addprefix $(recovery_busybox_intermediates)/sbin/,$(filter-out $(exclude),$(notdir $(links))))
-$(SYMLINKS): BUSYBOX_BINARY := $(LOCAL_MODULE_STEM)
-$(SYMLINKS): $(LOCAL_INSTALLED_MODULE)
-	@echo "Symlink: $@ -> $(BUSYBOX_BINARY)"
-	@mkdir -p $(dir $@)
-	@rm -rf $@
-	$(hide) ln -sf $(BUSYBOX_BINARY) $@
-
-SHLINK := $(recovery_busybox_root)/system/bin/sh
-$(SHLINK): BUSYBOX_BINARY := ../../sbin/$(LOCAL_MODULE_STEM)
-$(SHLINK): $(LOCAL_INSTALLED_MODULE)
-	@echo "Symlink: $@ -> $(BUSYBOX_BINARY)"
-	mkdir -p $(dir $@)
-	@rm -rf $@
-	$(hide) ln -sf $(BUSYBOX_BINARY) $@
-
-#ALL_DEFAULT_INSTALLED_MODULES += $(SYMLINKS) $(SHLINK)
-$(LOCAL_MODULE): $(SYMLINKS)
-
-# We need this so that the installed files could be picked up based on the
-# local module name
-#ALL_MODULES.$(LOCAL_MODULE).INSTALLED := \
-    $(ALL_MODULES.$(LOCAL_MODULE).INSTALLED) $(SYMLINKS) $(SHLINK)
