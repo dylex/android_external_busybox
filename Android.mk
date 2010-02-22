@@ -82,15 +82,21 @@ LOCAL_CFLAGS := \
 	-DNDEBUG \
 	-DANDROID_CHANGES \
 	-include include/autoconf.h \
+	-include sys/cdefs.h \
+	-include stdio.h \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
 	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
+
+LOCAL_CFLAGS += \
+  -Dgetmntent=busybox_getmntent \
+  -Dgetmntent_r=busybox_getmntent_r
 
 LOCAL_MODULE := recovery_busybox
 LOCAL_MODULE_STEM := busybox
 LOCAL_FORCE_STATIC_EXECUTABLE := true
 LOCAL_MODULE_TAGS := eng
 LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/sbin
-LOCAL_STATIC_LIBRARIES += libc libm libclearsilverregex
+LOCAL_STATIC_LIBRARIES += libclearsilverregex libcutils libc libm 
 ADDITIONAL_RECOVERY_EXECUTABLES += recovery_busybox
 
 include $(BUILD_EXECUTABLE)
