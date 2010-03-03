@@ -62,7 +62,6 @@ include $(BUILD_STATIC_LIBRARY)
 
 # Build a static busybox for the recovery image
 include $(CLEAR_VARS)
-LOCAL_MODULE_CLASS := RECOVERY_EXECUTABLES
 
 KERNEL_MODULES_DIR?=/system/modules/lib/modules
 
@@ -91,13 +90,7 @@ LOCAL_CFLAGS += \
   -Dgetmntent=busybox_getmntent \
   -Dgetmntent_r=busybox_getmntent_r
 
-LOCAL_MODULE := recovery_busybox
-LOCAL_MODULE_STEM := busybox
-LOCAL_FORCE_STATIC_EXECUTABLE := true
-LOCAL_MODULE_TAGS := eng
-LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/sbin
+LOCAL_MODULE := libbusybox
 LOCAL_STATIC_LIBRARIES += libclearsilverregex libcutils libc libm 
-LOCAL_UNSTRIPPED_PATH := $(TARGET_OUT_EXECUTABLES_UNSTRIPPED)
-ADDITIONAL_RECOVERY_EXECUTABLES += recovery_busybox
-
-include $(BUILD_EXECUTABLE)
+LOCAL_CFLAGS += -Dmain=busybox_driver
+include $(BUILD_STATIC_LIBRARY)
