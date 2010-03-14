@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.16.0android
  */
-#define AUTOCONF_TIMESTAMP "2010-02-07 03:27:23 EST"
+#define AUTOCONF_TIMESTAMP "2010-03-14 14:31:09 EDT"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -2316,18 +2316,18 @@
 #define ENABLE_ARPING 0
 #define IF_ARPING(...)
 #define IF_NOT_ARPING(...) __VA_ARGS__
-#undef CONFIG_BRCTL
-#define ENABLE_BRCTL 0
-#define IF_BRCTL(...)
-#define IF_NOT_BRCTL(...) __VA_ARGS__
-#undef CONFIG_FEATURE_BRCTL_FANCY
-#define ENABLE_FEATURE_BRCTL_FANCY 0
-#define IF_FEATURE_BRCTL_FANCY(...)
-#define IF_NOT_FEATURE_BRCTL_FANCY(...) __VA_ARGS__
-#undef CONFIG_FEATURE_BRCTL_SHOW
-#define ENABLE_FEATURE_BRCTL_SHOW 0
-#define IF_FEATURE_BRCTL_SHOW(...)
-#define IF_NOT_FEATURE_BRCTL_SHOW(...) __VA_ARGS__
+#define CONFIG_BRCTL 1
+#define ENABLE_BRCTL 1
+#define IF_BRCTL(...) __VA_ARGS__
+#define IF_NOT_BRCTL(...)
+#define CONFIG_FEATURE_BRCTL_FANCY 1
+#define ENABLE_FEATURE_BRCTL_FANCY 1
+#define IF_FEATURE_BRCTL_FANCY(...) __VA_ARGS__
+#define IF_NOT_FEATURE_BRCTL_FANCY(...)
+#define CONFIG_FEATURE_BRCTL_SHOW 1
+#define ENABLE_FEATURE_BRCTL_SHOW 1
+#define IF_FEATURE_BRCTL_SHOW(...) __VA_ARGS__
+#define IF_NOT_FEATURE_BRCTL_SHOW(...)
 #undef CONFIG_DNSD
 #define ENABLE_DNSD 0
 #define IF_DNSD(...)
