@@ -11,9 +11,10 @@ LOCAL_C_INCLUDES := \
 include $(BUILD_STATIC_LIBRARY)
 
 
+SUBMAKE := make -s -C $(LOCAL_PATH) CC=$(CC)
 KERNEL_MODULES_DIR?=/system/modules/lib/modules
 
-BUSYBOX_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
+BUSYBOX_SRC_FILES := $(shell $(SUBMAKE) show-sources) \
 	libbb/android.c
 
 BUSYBOX_C_INCLUDES := \
@@ -30,7 +31,7 @@ BUSYBOX_CFLAGS := \
 	-DANDROID_CHANGES \
 	-include include/autoconf.h \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
-	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
+	-D'BB_VER="$(strip $(shell $(SUBMAKE) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
 
 
 include $(CLEAR_VARS)
