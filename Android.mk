@@ -1,9 +1,10 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
+SUBMAKE := make -s -C $(LOCAL_PATH) CC=$(CC)
 KERNEL_MODULES_DIR?=/system/modules/lib/modules
 
-LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
+LOCAL_SRC_FILES := $(shell $(SUBMAKE) show-sources) \
 	../clearsilver/util/regex/regex.c \
 	libbb/android.c
 
@@ -21,7 +22,7 @@ LOCAL_CFLAGS := \
 	-DANDROID_CHANGES \
 	-include include/autoconf.h \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
-	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
+	-D'BB_VER="$(strip $(shell $(SUBMAKE) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
 
 LOCAL_MODULE := busybox
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
@@ -65,7 +66,7 @@ include $(CLEAR_VARS)
 
 KERNEL_MODULES_DIR?=/system/modules/lib/modules
 
-LOCAL_SRC_FILES := $(shell make -s -C $(LOCAL_PATH) show-sources) \
+LOCAL_SRC_FILES := $(shell $(SUBMAKE) show-sources) \
 	libbb/android.c
 
 LOCAL_C_INCLUDES := \
@@ -84,7 +85,7 @@ LOCAL_CFLAGS := \
 	-include sys/cdefs.h \
 	-include stdio.h \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
-	-D'BB_VER="$(strip $(shell make -s -C $(LOCAL_PATH) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
+	-D'BB_VER="$(strip $(shell $(SUBMAKE) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
 
 LOCAL_CFLAGS += \
   -Dgetmntent=busybox_getmntent \
