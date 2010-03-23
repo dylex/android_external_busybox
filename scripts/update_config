@@ -1,0 +1,10 @@
+#!/bin/sh
+#
+# Update relevant files after config change
+# shade@chemlab.org
+
+make -f scripts/Makefile.IMA include/applet_tables.h
+make -f scripts/Makefile.IMA include/usage_compressed.h
+make busybox.links
+scripts/mkconfigs > include/bbconfigopts.h
+
