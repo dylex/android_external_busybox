@@ -2,7 +2,7 @@
  * Automatically generated C config: don't edit
  * Busybox version: 1.16.0android
  */
-#define AUTOCONF_TIMESTAMP "2010-03-14 14:31:09 EDT"
+#define AUTOCONF_TIMESTAMP "2010-03-23 10:32:51 EDT"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -2328,10 +2328,10 @@
 #define ENABLE_FEATURE_BRCTL_SHOW 1
 #define IF_FEATURE_BRCTL_SHOW(...) __VA_ARGS__
 #define IF_NOT_FEATURE_BRCTL_SHOW(...)
-#undef CONFIG_DNSD
-#define ENABLE_DNSD 0
-#define IF_DNSD(...)
-#define IF_NOT_DNSD(...) __VA_ARGS__
+#define CONFIG_DNSD 1
+#define ENABLE_DNSD 1
+#define IF_DNSD(...) __VA_ARGS__
+#define IF_NOT_DNSD(...)
 #undef CONFIG_ETHER_WAKE
 #define ENABLE_ETHER_WAKE 0
 #define IF_ETHER_WAKE(...)
@@ -2612,10 +2612,10 @@
 #define ENABLE_NSLOOKUP 1
 #define IF_NSLOOKUP(...) __VA_ARGS__
 #define IF_NOT_NSLOOKUP(...)
-#undef CONFIG_NTPD
-#define ENABLE_NTPD 0
-#define IF_NTPD(...)
-#define IF_NOT_NTPD(...) __VA_ARGS__
+#define CONFIG_NTPD 1
+#define ENABLE_NTPD 1
+#define IF_NTPD(...) __VA_ARGS__
+#define IF_NOT_NTPD(...)
 #undef CONFIG_FEATURE_NTPD_SERVER
 #define ENABLE_FEATURE_NTPD_SERVER 0
 #define IF_FEATURE_NTPD_SERVER(...)
