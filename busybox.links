@@ -31,6 +31,7 @@
 /bin/diff
 /bin/dirname
 /bin/dmesg
+/sbin/dnsd
 /bin/dos2unix
 /bin/du
 /bin/echo
@@ -88,6 +89,7 @@
 /bin/nice
 /bin/nohup
 /bin/nslookup
+/sbin/ntpd
 /bin/od
 /bin/patch
 /bin/pgrep
