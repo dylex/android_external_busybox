@@ -1,10 +1,15 @@
-#!/bin/sh
+#!/bin/sh -ex
 #
 # Update relevant files after config change
 # shade@chemlab.org
 
-make -f scripts/Makefile.IMA include/applet_tables.h
-make -f scripts/Makefile.IMA include/usage_compressed.h
-make busybox.links
-scripts/mkconfigs > include/bbconfigopts.h
-
+for config in full minimal ; do
+	rm -f .config.old
+	cp -f .config-$config .config
+	make clean prepare busybox.links
+	make -s show-sources > busybox-$config.sources
+	mkdir -p include-$config
+	mv -f include/{autoconf,applet_tables,usage_compressed,bbconfigopts}.h include-$config
+	mv -f busybox.links busybox-$config.links
+	rm -f .config
+done

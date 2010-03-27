@@ -11,7 +11,7 @@
 # Never ignore these
 #
 !.gitignore
-!.config
+!.config*
 
 #
 # Normal output
@@ -26,6 +26,7 @@
 *.orig
 *.rej
 /*.patch
+/.config.old
 
 #
 # debugging stuff

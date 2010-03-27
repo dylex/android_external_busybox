@@ -14,27 +14,29 @@ include $(BUILD_STATIC_LIBRARY)
 SUBMAKE := make -s -C $(LOCAL_PATH) CC=$(CC)
 KERNEL_MODULES_DIR?=/system/modules/lib/modules
 
-BUSYBOX_SRC_FILES := $(shell $(SUBMAKE) show-sources) \
+BUSYBOX_SRC_FILES = $(shell cat $(LOCAL_PATH)/busybox-$(BUSYBOX_CONFIG).sources) \
 	libbb/android.c
 
-BUSYBOX_C_INCLUDES := \
+BUSYBOX_C_INCLUDES = \
+	$(LOCAL_PATH)/include-$(BUSYBOX_CONFIG) \
 	$(LOCAL_PATH)/include $(LOCAL_PATH)/libbb \
 	external/clearsilver \
 	external/clearsilver/util/regex \
 	bionic/libc/private \
 	libc/kernel/common
 
-BUSYBOX_CFLAGS := \
+BUSYBOX_CFLAGS = \
 	-std=gnu99 \
 	-Werror=implicit \
 	-DNDEBUG \
 	-DANDROID_CHANGES \
-	-include include/autoconf.h \
+	-include include-$(BUSYBOX_CONFIG)/autoconf.h \
 	-D'CONFIG_DEFAULT_MODULES_DIR="$(KERNEL_MODULES_DIR)"' \
-	-D'BB_VER="$(strip $(shell $(SUBMAKE) kernelversion))"' -DBB_BT=AUTOCONF_TIMESTAMP
+	-D'BB_VER="$(strip $(shell $(SUBMAKE) kernelversion))$(BUSYBOX_CONFIG)"' -DBB_BT=AUTOCONF_TIMESTAMP
 
 
 include $(CLEAR_VARS)
+BUSYBOX_CONFIG:=full
 LOCAL_SRC_FILES := $(BUSYBOX_SRC_FILES)
 LOCAL_C_INCLUDES := $(BUSYBOX_C_INCLUDES)
 LOCAL_CFLAGS := $(BUSYBOX_CFLAGS)
@@ -43,7 +45,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
 LOCAL_STATIC_LIBRARIES += libclearsilverregex
 include $(BUILD_EXECUTABLE)
 
-BUSYBOX_LINKS := $(shell cat $(LOCAL_PATH)/busybox.links)
+BUSYBOX_LINKS := $(shell cat $(LOCAL_PATH)/busybox-$(BUSYBOX_CONFIG).links)
 # nc is provided by external/netcat
 exclude := nc
 SYMLINKS := $(addprefix $(TARGET_OUT_OPTIONAL_EXECUTABLES)/,$(filter-out $(exclude),$(notdir $(BUSYBOX_LINKS))))
@@ -64,6 +66,7 @@ ALL_MODULES.$(LOCAL_MODULE).INSTALLED := \
 
 # Build a static busybox for the recovery image
 include $(CLEAR_VARS)
+BUSYBOX_CONFIG:=minimal
 LOCAL_SRC_FILES := $(BUSYBOX_SRC_FILES)
 LOCAL_C_INCLUDES := $(BUSYBOX_C_INCLUDES)
 LOCAL_CFLAGS := -Dmain=busybox_driver $(BUSYBOX_CFLAGS)
