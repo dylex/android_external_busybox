@@ -633,7 +633,7 @@ int telnet_main(int argc UNUSED_PARAM, char **argv)
 		default:
 
 #ifdef USE_POLL
-			if (ufds[0].revents & POLLIN)
+			if (ufds[0].revents)
 #else
 			if (FD_ISSET(STDIN_FILENO, &rfds))
 #endif
@@ -646,7 +646,7 @@ int telnet_main(int argc UNUSED_PARAM, char **argv)
 			}
 
 #ifdef USE_POLL
-			if (ufds[1].revents & POLLIN)
+			if (ufds[1].revents)
 #else
 			if (FD_ISSET(netfd, &rfds))
 #endif
