@@ -2,6 +2,7 @@
 
 #define NUM_APPLETS 163
 
+#ifndef SKIP_definitions
 const char applet_names[] ALIGN1 = ""
 "[" "\0"
 "[[" "\0"
@@ -501,5 +502,7 @@ const uint16_t applet_nameofs[] ALIGN2 = {
 0x03bc,
 0x03c0,
 };
+
+#endif /* SKIP_definitions */
 
 #define MAX_APPLET_NAME_LEN 11
