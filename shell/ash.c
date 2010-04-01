@@ -12971,7 +12971,7 @@ procargs(char **argv)
 }
 
 /*
- * Read /etc/profile or /sd-ext/.profile.
+ * Read /etc/profile or .profile.
  */
 static void
 read_profile(const char *name)
@@ -13102,11 +13102,7 @@ int ash_main(int argc UNUSED_PARAM, char **argv)
 		read_profile("/etc/profile");
  state1:
 		state = 2;
-#ifdef ANDROID_CHANGES
-		read_profile("/sd-ext/.profile");
-#else
 		read_profile(".profile");
-#endif
 	}
  state2:
 	state = 3;
