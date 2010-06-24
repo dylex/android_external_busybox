@@ -3622,7 +3622,7 @@ setjobctl(int on)
 			}
 			if (pgrp == getpgrp())
 				break;
-			killpg(0, SIGTTIN);
+			killpg_busybox(0, SIGTTIN);
 		} while (1);
 		initialpgrp = pgrp;
 
@@ -3702,7 +3702,7 @@ restartjob(struct job *jp, int mode)
 	pgid = jp->ps[0].ps_pid;
 	if (mode == FORK_FG)
 		xtcsetpgrp(ttyfd, pgid);
-	killpg(pgid, SIGCONT);
+	killpg_busybox(pgid, SIGCONT);
 	ps = jp->ps;
 	i = jp->nprocs;
 	do {
@@ -12481,8 +12481,6 @@ letcmd(int argc UNUSED_PARAM, char **argv)
 
 #if defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 1
 typedef enum __rlimit_resource rlim_t;
-#elif defined(__BIONIC__)
-typedef unsigned long rlim_t;
 #endif
 
 /*

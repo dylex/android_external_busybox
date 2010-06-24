@@ -11,7 +11,7 @@
 /* for dirname, basename */
 #include <libgen.h>
 
-#define killpg(P, S) kill(-(P), S)
+#define killpg_busybox(P, S) kill(-(P), S)
 
 #define setmntent fopen
 #define endmntent fclose
