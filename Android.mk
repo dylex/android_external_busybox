@@ -83,6 +83,10 @@ LOCAL_SRC_FILES := $(BUSYBOX_SRC_FILES)
 LOCAL_C_INCLUDES := $(BUSYBOX_C_INCLUDES)
 LOCAL_CFLAGS := -Dmain=busybox_driver $(BUSYBOX_CFLAGS)
 LOCAL_CFLAGS += \
+  -Dgetusershell=busybox_getusershell \
+  -Dsetusershell=busybox_setusershell \
+  -Dendusershell=busybox_endusershell \
+  -Dttyname_r=busybox_ttyname_r \
   -Dgetmntent=busybox_getmntent \
   -Dgetmntent_r=busybox_getmntent_r
 LOCAL_MODULE := libbusybox
