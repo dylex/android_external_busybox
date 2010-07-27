@@ -575,13 +575,16 @@ static NOINLINE int inflate_codes(STATE_PARAM_ONLY)
 			do {
 				/* Was: nn -= (e = (e = GUNZIP_WSIZE - ((dd &= GUNZIP_WSIZE - 1) > w ? dd : w)) > nn ? nn : e); */
 				/* Who wrote THAT?? rewritten as: */
+				unsigned delta;
+
 				dd &= GUNZIP_WSIZE - 1;
 				e = GUNZIP_WSIZE - (dd > w ? dd : w);
+				delta = w > dd ? w - dd : dd - w;
 				if (e > nn) e = nn;
 				nn -= e;
 
 				/* copy to new buffer to prevent possible overwrite */
-				if (w - dd >= e) {	/* (this test assumes unsigned comparison) */
+				if (delta >= e) {
 					memcpy(gunzip_window + w, gunzip_window + dd, e);
 					w += e;
 					dd += e;
@@ -1069,7 +1072,7 @@ static int top_up(STATE_PARAM unsigned n)
 		bytebuffer_offset = 0;
 		bytebuffer_size = full_read(gunzip_src_fd, &bytebuffer[count], bytebuffer_max - count);
 		if ((int)bytebuffer_size < 0) {
-			bb_error_msg("read error");
+			bb_error_msg(bb_msg_read_error);
 			return 0;
 		}
 		bytebuffer_size += count;

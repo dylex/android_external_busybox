@@ -267,8 +267,7 @@ struct globals {
 #endif
 	llist_t *fslist;
 	char getmntent_buf[1];
-
-};
+} FIX_ALIASING;
 enum { GETMNTENT_BUFSIZE = COMMON_BUFSIZE - offsetof(struct globals, getmntent_buf) };
 #define G (*(struct globals*)&bb_common_bufsiz1)
 #define nfs_mount_version (G.nfs_mount_version)
@@ -457,7 +456,7 @@ static int mount_it_now(struct mntent *mp, long vfsflags, char *filteropts)
 				args[rc++] = filteropts;
 			}
 			args[rc] = NULL;
-			rc = wait4pid(spawn(args));
+			rc = spawn_and_wait(args);
 			free(args[0]);
 			if (!rc)
 				break;
@@ -750,7 +749,15 @@ static const uint8_t nfs_err_stat[] = {
 	19, 20, 21, 22, 27, 28,
 	30, 63, 66, 69, 70, 71
 };
-static const uint8_t nfs_err_errnum[] = {
+#if ( \
+	EPERM | ENOENT      | EIO      | ENXIO | EACCES| EEXIST | \
+	ENODEV| ENOTDIR     | EISDIR   | EINVAL| EFBIG | ENOSPC | \
+	EROFS | ENAMETOOLONG| ENOTEMPTY| EDQUOT| ESTALE| EREMOTE) < 256
+typedef uint8_t nfs_err_type;
+#else
+typedef uint16_t nfs_err_type;
+#endif
+static const nfs_err_type nfs_err_errnum[] = {
 	EPERM , ENOENT      , EIO      , ENXIO , EACCES, EEXIST,
 	ENODEV, ENOTDIR     , EISDIR   , EINVAL, EFBIG , ENOSPC,
 	EROFS , ENAMETOOLONG, ENOTEMPTY, EDQUOT, ESTALE, EREMOTE
@@ -907,10 +914,12 @@ get_mountport(struct pmap *pm_mnt,
 			goto next;
 		if (version && version <= 2 && pmap->pml_map.pm_vers > 2)
 			goto next;
-		if (pmap->pml_map.pm_vers > MAX_NFSPROT ||
-		    (proto && pm_mnt->pm_prot && pmap->pml_map.pm_prot != proto) ||
-		    (port && pmap->pml_map.pm_port != port))
+		if (pmap->pml_map.pm_vers > MAX_NFSPROT
+		 || (proto && pm_mnt->pm_prot && pmap->pml_map.pm_prot != proto)
+		 || (port && pmap->pml_map.pm_port != port)
+		) {
 			goto next;
+		}
 		memcpy(pm_mnt, &pmap->pml_map, sizeof(*pm_mnt));
  next:
 		pmap = pmap->pml_next;
@@ -1042,12 +1051,10 @@ static NOINLINE int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 			bb_herror_msg("%s", hostname);
 			goto fail;
 		}
-		if ((size_t)hp->h_length > sizeof(struct in_addr)) {
-			bb_error_msg("got bad hp->h_length");
-			hp->h_length = sizeof(struct in_addr);
+		if (hp->h_length != (int)sizeof(struct in_addr)) {
+			bb_error_msg_and_die("only IPv4 is supported");
 		}
-		memcpy(&server_addr.sin_addr,
-				hp->h_addr, hp->h_length);
+		memcpy(&server_addr.sin_addr, hp->h_addr_list[0], sizeof(struct in_addr));
 	}
 
 	memcpy(&mount_server_addr, &server_addr, sizeof(mount_server_addr));
@@ -1330,13 +1337,11 @@ static NOINLINE int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 				bb_herror_msg("%s", mounthost);
 				goto fail;
 			}
-			if ((size_t)hp->h_length > sizeof(struct in_addr)) {
-				bb_error_msg("got bad hp->h_length");
-				hp->h_length = sizeof(struct in_addr);
+			if (hp->h_length != (int)sizeof(struct in_addr)) {
+				bb_error_msg_and_die("only IPv4 is supported");
 			}
 			mount_server_addr.sin_family = AF_INET;
-			memcpy(&mount_server_addr.sin_addr,
-						hp->h_addr, hp->h_length);
+			memcpy(&mount_server_addr.sin_addr, hp->h_addr_list[0], sizeof(struct in_addr));
 		}
 	}
 
@@ -1636,7 +1641,7 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 		}
 		args[n++] = mp->mnt_dir;
 		args[n] = NULL;
-		rc = wait4pid(xspawn(args));
+		rc = spawn_and_wait(args);
 		goto report_error;
 	}
 
@@ -1713,9 +1718,9 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 	// If we know the fstype (or don't need to), jump straight
 	// to the actual mount.
-	if (mp->mnt_type || (vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE)))
+	if (mp->mnt_type || (vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE))) {
 		rc = mount_it_now(mp, vfsflags, filteropts);
-	else {
+	} else {
 		// Loop through filesystem types until mount succeeds
 		// or we run out
 
@@ -1751,7 +1756,7 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 	if (errno == EBUSY && ignore_busy)
 		return 0;
-	if (rc < 0)
+	if (rc != 0)
 		bb_perror_msg("mounting %s on %s failed", mp->mnt_fsname, mp->mnt_dir);
 	return rc;
 }
@@ -1924,7 +1929,7 @@ int mount_main(int argc UNUSED_PARAM, char **argv)
 	}
 	fstab = setmntent(fstabname, "r");
 	if (!fstab)
-		bb_perror_msg_and_die("can't read %s", fstabname);
+		bb_perror_msg_and_die("can't read '%s'", fstabname);
 
 	// Loop through entries until we find what we're looking for
 	memset(mtpair, 0, sizeof(mtpair));
