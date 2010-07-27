@@ -9,7 +9,7 @@ for config in full minimal ; do
 	make clean prepare busybox.links
 	make -s show-sources > busybox-$config.sources
 	mkdir -p include-$config
-	mv -f include/{autoconf,applet_tables,usage_compressed,bbconfigopts}.h include-$config
+	mv -f include/{NUM_APPLETS,autoconf,applet_tables,applets,usage_compressed,bbconfigopts}.h include-$config
 	mv -f busybox.links busybox-$config.links
 	rm -f .config
 done
