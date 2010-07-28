@@ -76,6 +76,17 @@ int addmntent(FILE *fp, const struct mntent *mnt)
 	return 1;
 }
 
+const char *hasmntopt(const struct mntent *mnt, const char *opt)
+{
+	const char *o = mnt->mnt_opts;
+	size_t l = strlen(opt);
+
+	while ((o = strstr(o, opt)) && 
+			((o > mnt->mnt_opts && o[-1] != ',') || 
+			 (o[l] != 0 && o[l] != ',' && o[l] != '=')));
+	return o;
+}
+
 /* declared in grp.h, but not necessary */
 int setpwent() { return 0; }
 void setgrent() {}
