@@ -651,7 +651,7 @@ static const char bbconfig_config[] =
 "CONFIG_FEATURE_IP_LINK=y\n"
 "CONFIG_FEATURE_IP_ROUTE=y\n"
 "# CONFIG_FEATURE_IP_TUNNEL is not set\n"
-"# CONFIG_FEATURE_IP_RULE is not set\n"
+"CONFIG_FEATURE_IP_RULE=y\n"
 "# CONFIG_FEATURE_IP_SHORT_FORMS is not set\n"
 "# CONFIG_FEATURE_IP_RARE_PROTOCOLS is not set\n"
 "# CONFIG_IPADDR is not set\n"

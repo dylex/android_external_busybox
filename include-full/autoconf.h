@@ -1,8 +1,8 @@
 /*
  * Automatically generated C config: don't edit
- * Busybox version: 1.17.1android
+ * Busybox version: 1.17.2android
  */
-#define AUTOCONF_TIMESTAMP "2010-07-27 19:42:11 EDT"
+#define AUTOCONF_TIMESTAMP "2010-10-03 17:35:04 EDT"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
@@ -2676,10 +2676,10 @@
 #define ENABLE_FEATURE_IP_TUNNEL 0
 #define IF_FEATURE_IP_TUNNEL(...)
 #define IF_NOT_FEATURE_IP_TUNNEL(...) __VA_ARGS__
-#undef CONFIG_FEATURE_IP_RULE
-#define ENABLE_FEATURE_IP_RULE 0
-#define IF_FEATURE_IP_RULE(...)
-#define IF_NOT_FEATURE_IP_RULE(...) __VA_ARGS__
+#define CONFIG_FEATURE_IP_RULE 1
+#define ENABLE_FEATURE_IP_RULE 1
+#define IF_FEATURE_IP_RULE(...) __VA_ARGS__
+#define IF_NOT_FEATURE_IP_RULE(...)
 #undef CONFIG_FEATURE_IP_SHORT_FORMS
 #define ENABLE_FEATURE_IP_SHORT_FORMS 0
 #define IF_FEATURE_IP_SHORT_FORMS(...)

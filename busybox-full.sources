@@ -16,7 +16,7 @@ libpwdgrp/uidgid_get.c
 miscutils/bbconfig.c miscutils/dc.c miscutils/devmem.c miscutils/less.c miscutils/mountpoint.c miscutils/setsid.c miscutils/strings.c miscutils/time.c
 modutils/modinfo.c modutils/modprobe-small.c modutils/modutils.c
 networking/arp.c networking/brctl.c networking/dnsd.c networking/ifconfig.c networking/interface.c networking/ip.c networking/nc.c networking/netstat.c networking/nslookup.c networking/ntpd.c networking/ping.c networking/route.c networking/telnet.c networking/tftp.c networking/traceroute.c networking/wget.c
-networking/libiproute/ip_parse_common_args.c networking/libiproute/ipaddress.c networking/libiproute/iplink.c networking/libiproute/iproute.c networking/libiproute/libnetlink.c networking/libiproute/ll_addr.c networking/libiproute/ll_map.c networking/libiproute/ll_proto.c networking/libiproute/ll_types.c networking/libiproute/rt_names.c networking/libiproute/rtm_map.c networking/libiproute/utils.c
+networking/libiproute/ip_parse_common_args.c networking/libiproute/ipaddress.c networking/libiproute/iplink.c networking/libiproute/iproute.c networking/libiproute/iprule.c networking/libiproute/libnetlink.c networking/libiproute/ll_addr.c networking/libiproute/ll_map.c networking/libiproute/ll_proto.c networking/libiproute/ll_types.c networking/libiproute/rt_names.c networking/libiproute/rtm_map.c networking/libiproute/utils.c
 
 
 procps/free.c procps/fuser.c procps/kill.c procps/pgrep.c procps/pidof.c procps/ps.c procps/renice.c procps/sysctl.c procps/top.c procps/uptime.c procps/watch.c

@@ -1,8 +1,8 @@
 /*
  * Automatically generated C config: don't edit
- * Busybox version: 1.17.1android
+ * Busybox version: 1.17.2android
  */
-#define AUTOCONF_TIMESTAMP "2010-07-27 19:42:21 EDT"
+#define AUTOCONF_TIMESTAMP "2010-10-03 17:35:18 EDT"
 
 #define CONFIG_HAVE_DOT_CONFIG 1
 #define ENABLE_HAVE_DOT_CONFIG 1
