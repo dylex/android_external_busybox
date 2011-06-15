@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2008 by Vladimir Dronnikov <dronnikov@gmail.com>
  *
- * Licensed under GPLv2, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 #include "libbb.h"
 #include "mail.h"
@@ -221,12 +221,12 @@ int sendmail_main(int argc UNUSED_PARAM, char **argv)
 
 		// analyze headers
 		// To: or Cc: headers add recipients
-		if (0 == strncasecmp("To: ", s, 4) || 0 == strncasecmp("Bcc: " + 1, s, 4)) {
-			rcptto(sane_address(s+4));
+		if (0 == strncasecmp("To:", s, 3) || 0 == strncasecmp("Bcc:" + 1, s, 3)) {
+			rcptto(sane_address(s+3));
 			goto addheader;
 		// Bcc: header adds blind copy (hidden) recipient
-		} else if (0 == strncasecmp("Bcc: ", s, 5)) {
-			rcptto(sane_address(s+5));
+		} else if (0 == strncasecmp("Bcc:", s, 4)) {
+			rcptto(sane_address(s+4));
 			free(s);
 			// N.B. Bcc: vanishes from headers!
 

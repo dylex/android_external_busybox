@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2002 by Dmitry Zakharov <dmit@crp.bank.gov.ua>
  *
- * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
+ * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 
 #include "libbb.h"
@@ -17,9 +17,13 @@
 /* If you comment out one of these below, it will be #defined later
  * to perform debug printfs to stderr: */
 #define debug_printf_walker(...)  do {} while (0)
+#define debug_printf_eval(...)  do {} while (0)
 
 #ifndef debug_printf_walker
 # define debug_printf_walker(...) (fprintf(stderr, __VA_ARGS__))
+#endif
+#ifndef debug_printf_eval
+# define debug_printf_eval(...) (fprintf(stderr, __VA_ARGS__))
 #endif
 
 
@@ -273,94 +277,86 @@ enum {
 
 /* tokens and their corresponding info values */
 
-#define	NTC     "\377"  /* switch to next token class (tc<<1) */
-#define	NTCC    '\377'
+#define NTC     "\377"  /* switch to next token class (tc<<1) */
+#define NTCC    '\377'
 
-#define	OC_B	OC_BUILTIN
+#define OC_B  OC_BUILTIN
 
 static const char tokenlist[] ALIGN1 =
-	"\1("       NTC
-	"\1)"       NTC
-	"\1/"       NTC                                 /* REGEXP */
-	"\2>>"      "\1>"       "\1|"       NTC         /* OUTRDR */
-	"\2++"      "\2--"      NTC                     /* UOPPOST */
-	"\2++"      "\2--"      "\1$"       NTC         /* UOPPRE1 */
-	"\2=="      "\1="       "\2+="      "\2-="      /* BINOPX */
-	"\2*="      "\2/="      "\2%="      "\2^="
-	"\1+"       "\1-"       "\3**="     "\2**"
-	"\1/"       "\1%"       "\1^"       "\1*"
-	"\2!="      "\2>="      "\2<="      "\1>"
-	"\1<"       "\2!~"      "\1~"       "\2&&"
-	"\2||"      "\1?"       "\1:"       NTC
-	"\2in"      NTC
-	"\1,"       NTC
-	"\1|"       NTC
-	"\1+"       "\1-"       "\1!"       NTC         /* UOPPRE2 */
-	"\1]"       NTC
-	"\1{"       NTC
-	"\1}"       NTC
-	"\1;"       NTC
-	"\1\n"      NTC
-	"\2if"      "\2do"      "\3for"     "\5break"   /* STATX */
-	"\10continue"           "\6delete"  "\5print"
-	"\6printf"  "\4next"    "\10nextfile"
-	"\6return"  "\4exit"    NTC
-	"\5while"   NTC
-	"\4else"    NTC
+	"\1("         NTC
+	"\1)"         NTC
+	"\1/"         NTC                                   /* REGEXP */
+	"\2>>"        "\1>"         "\1|"       NTC         /* OUTRDR */
+	"\2++"        "\2--"        NTC                     /* UOPPOST */
+	"\2++"        "\2--"        "\1$"       NTC         /* UOPPRE1 */
+	"\2=="        "\1="         "\2+="      "\2-="      /* BINOPX */
+	"\2*="        "\2/="        "\2%="      "\2^="
+	"\1+"         "\1-"         "\3**="     "\2**"
+	"\1/"         "\1%"         "\1^"       "\1*"
+	"\2!="        "\2>="        "\2<="      "\1>"
+	"\1<"         "\2!~"        "\1~"       "\2&&"
+	"\2||"        "\1?"         "\1:"       NTC
+	"\2in"        NTC
+	"\1,"         NTC
+	"\1|"         NTC
+	"\1+"         "\1-"         "\1!"       NTC         /* UOPPRE2 */
+	"\1]"         NTC
+	"\1{"         NTC
+	"\1}"         NTC
+	"\1;"         NTC
+	"\1\n"        NTC
+	"\2if"        "\2do"        "\3for"     "\5break"   /* STATX */
+	"\10continue" "\6delete"    "\5print"
+	"\6printf"    "\4next"      "\10nextfile"
+	"\6return"    "\4exit"      NTC
+	"\5while"     NTC
+	"\4else"      NTC
 
-	"\3and"     "\5compl"   "\6lshift"  "\2or"
-	"\6rshift"  "\3xor"
-	"\5close"   "\6system"  "\6fflush"  "\5atan2"   /* BUILTIN */
-	"\3cos"     "\3exp"     "\3int"     "\3log"
-	"\4rand"    "\3sin"     "\4sqrt"    "\5srand"
-	"\6gensub"  "\4gsub"    "\5index"   "\6length"
-	"\5match"   "\5split"   "\7sprintf" "\3sub"
-	"\6substr"  "\7systime" "\10strftime" "\6mktime"
-	"\7tolower" "\7toupper" NTC
-	"\7getline" NTC
-	"\4func"    "\10function"   NTC
-	"\5BEGIN"   NTC
-	"\3END"     "\0"
+	"\3and"       "\5compl"     "\6lshift"  "\2or"
+	"\6rshift"    "\3xor"
+	"\5close"     "\6system"    "\6fflush"  "\5atan2"   /* BUILTIN */
+	"\3cos"       "\3exp"       "\3int"     "\3log"
+	"\4rand"      "\3sin"       "\4sqrt"    "\5srand"
+	"\6gensub"    "\4gsub"      "\5index"   "\6length"
+	"\5match"     "\5split"     "\7sprintf" "\3sub"
+	"\6substr"    "\7systime"   "\10strftime" "\6mktime"
+	"\7tolower"   "\7toupper"   NTC
+	"\7getline"   NTC
+	"\4func"      "\10function" NTC
+	"\5BEGIN"     NTC
+	"\3END"
+	/* compiler adds trailing "\0" */
 	;
 
 static const uint32_t tokeninfo[] = {
 	0,
 	0,
 	OC_REGEXP,
-	xS|'a',     xS|'w',     xS|'|',
-	OC_UNARY|xV|P(9)|'p',       OC_UNARY|xV|P(9)|'m',
-	OC_UNARY|xV|P(9)|'P',       OC_UNARY|xV|P(9)|'M',
-	    OC_FIELD|xV|P(5),
-	OC_COMPARE|VV|P(39)|5,      OC_MOVE|VV|P(74),
-	    OC_REPLACE|NV|P(74)|'+',    OC_REPLACE|NV|P(74)|'-',
-	OC_REPLACE|NV|P(74)|'*',    OC_REPLACE|NV|P(74)|'/',
-	    OC_REPLACE|NV|P(74)|'%',    OC_REPLACE|NV|P(74)|'&',
-	OC_BINARY|NV|P(29)|'+',     OC_BINARY|NV|P(29)|'-',
-	    OC_REPLACE|NV|P(74)|'&',    OC_BINARY|NV|P(15)|'&',
-	OC_BINARY|NV|P(25)|'/',     OC_BINARY|NV|P(25)|'%',
-	    OC_BINARY|NV|P(15)|'&',     OC_BINARY|NV|P(25)|'*',
-	OC_COMPARE|VV|P(39)|4,      OC_COMPARE|VV|P(39)|3,
-	    OC_COMPARE|VV|P(39)|0,      OC_COMPARE|VV|P(39)|1,
-	OC_COMPARE|VV|P(39)|2,      OC_MATCH|Sx|P(45)|'!',
-	    OC_MATCH|Sx|P(45)|'~',      OC_LAND|Vx|P(55),
-	OC_LOR|Vx|P(59),            OC_TERNARY|Vx|P(64)|'?',
-	    OC_COLON|xx|P(67)|':',
-	OC_IN|SV|P(49),
+	xS|'a',                  xS|'w',                  xS|'|',
+	OC_UNARY|xV|P(9)|'p',    OC_UNARY|xV|P(9)|'m',
+	OC_UNARY|xV|P(9)|'P',    OC_UNARY|xV|P(9)|'M',    OC_FIELD|xV|P(5),
+	OC_COMPARE|VV|P(39)|5,   OC_MOVE|VV|P(74),        OC_REPLACE|NV|P(74)|'+', OC_REPLACE|NV|P(74)|'-',
+	OC_REPLACE|NV|P(74)|'*', OC_REPLACE|NV|P(74)|'/', OC_REPLACE|NV|P(74)|'%', OC_REPLACE|NV|P(74)|'&',
+	OC_BINARY|NV|P(29)|'+',  OC_BINARY|NV|P(29)|'-',  OC_REPLACE|NV|P(74)|'&', OC_BINARY|NV|P(15)|'&',
+	OC_BINARY|NV|P(25)|'/',  OC_BINARY|NV|P(25)|'%',  OC_BINARY|NV|P(15)|'&',  OC_BINARY|NV|P(25)|'*',
+	OC_COMPARE|VV|P(39)|4,   OC_COMPARE|VV|P(39)|3,   OC_COMPARE|VV|P(39)|0,   OC_COMPARE|VV|P(39)|1,
+	OC_COMPARE|VV|P(39)|2,   OC_MATCH|Sx|P(45)|'!',   OC_MATCH|Sx|P(45)|'~',   OC_LAND|Vx|P(55),
+	OC_LOR|Vx|P(59),         OC_TERNARY|Vx|P(64)|'?', OC_COLON|xx|P(67)|':',
+	OC_IN|SV|P(49), /* in */
 	OC_COMMA|SS|P(80),
 	OC_PGETLINE|SV|P(37),
-	OC_UNARY|xV|P(19)|'+',      OC_UNARY|xV|P(19)|'-',
-	    OC_UNARY|xV|P(19)|'!',
+	OC_UNARY|xV|P(19)|'+',   OC_UNARY|xV|P(19)|'-',   OC_UNARY|xV|P(19)|'!',
+	0, /* ] */
 	0,
 	0,
 	0,
-	0,
-	0,
-	ST_IF,          ST_DO,          ST_FOR,         OC_BREAK,
-	OC_CONTINUE,                    OC_DELETE|Vx,   OC_PRINT,
-	OC_PRINTF,      OC_NEXT,        OC_NEXTFILE,
-	OC_RETURN|Vx,   OC_EXIT|Nx,
+	0, /* \n */
+	ST_IF,        ST_DO,        ST_FOR,      OC_BREAK,
+	OC_CONTINUE,  OC_DELETE|Vx, OC_PRINT,
+	OC_PRINTF,    OC_NEXT,      OC_NEXTFILE,
+	OC_RETURN|Vx, OC_EXIT|Nx,
 	ST_WHILE,
-	0,
+	0, /* else */
 
 	OC_B|B_an|P(0x83), OC_B|B_co|P(0x41), OC_B|B_ls|P(0x83), OC_B|B_or|P(0x83),
 	OC_B|B_rs|P(0x83), OC_B|B_xo|P(0x83),
@@ -372,9 +368,9 @@ static const uint32_t tokeninfo[] = {
 	OC_B|B_ss|P(0x8f), OC_FBLTIN|F_ti,    OC_B|B_ti|P(0x0b), OC_B|B_mt|P(0x0b),
 	OC_B|B_lo|P(0x49), OC_B|B_up|P(0x49),
 	OC_GETLINE|SV|P(0),
-	0,	0,
+	0,                 0,
 	0,
-	0
+	0 /* END */
 };
 
 /* internal variable names and their initial values       */
@@ -384,7 +380,7 @@ enum {
 	ORS,        RS,         RT,         FILENAME,
 	SUBSEP,     F0,         ARGIND,     ARGC,
 	ARGV,       ERRNO,      FNR,        NR,
-	NF,         IGNORECASE,	ENVIRON,    NUM_INTERNAL_VARS
+	NF,         IGNORECASE, ENVIRON,    NUM_INTERNAL_VARS
 };
 
 static const char vNames[] ALIGN1 =
@@ -528,9 +524,7 @@ static const char EMSG_TOO_FEW_ARGS[] ALIGN1 = "Too few arguments for builtin";
 static const char EMSG_NOT_ARRAY[] ALIGN1 = "Not an array";
 static const char EMSG_POSSIBLE_ERROR[] ALIGN1 = "Possible syntax error";
 static const char EMSG_UNDEF_FUNC[] ALIGN1 = "Call to undefined function";
-#if !ENABLE_FEATURE_AWK_LIBM
 static const char EMSG_NO_MATH[] ALIGN1 = "Math support is not compiled in";
-#endif
 
 static void zero_out_var(var *vp)
 {
@@ -688,8 +682,11 @@ static char nextchar(char **s)
 	pps = *s;
 	if (c == '\\')
 		c = bb_process_escape_sequence((const char**)s);
-	if (c == '\\' && *s == pps)
-		c = *(*s)++;
+	if (c == '\\' && *s == pps) { /* unrecognized \z? */
+		c = *(*s); /* yes, fetch z */
+		if (c)
+			(*s)++; /* advance unless z = NUL */
+	}
 	return c;
 }
 
@@ -700,14 +697,25 @@ static ALWAYS_INLINE int isalnum_(int c)
 
 static double my_strtod(char **pp)
 {
-#if ENABLE_DESKTOP
-	if ((*pp)[0] == '0'
-	 && ((((*pp)[1] | 0x20) == 'x') || isdigit((*pp)[1]))
-	) {
-		return strtoull(*pp, pp, 0);
+	char *cp = *pp;
+	if (ENABLE_DESKTOP && cp[0] == '0') {
+		/* Might be hex or octal integer: 0x123abc or 07777 */
+		char c = (cp[1] | 0x20);
+		if (c == 'x' || isdigit(cp[1])) {
+			unsigned long long ull = strtoull(cp, pp, 0);
+			if (c == 'x')
+				return ull;
+			c = **pp;
+			if (!isdigit(c) && c != '.')
+				return ull;
+			/* else: it may be a floating number. Examples:
+			 * 009.123 (*pp points to '9')
+			 * 000.123 (*pp points to '.')
+			 * fall through to strtod.
+			 */
+		}
 	}
-#endif
-	return strtod(*pp, pp);
+	return strtod(cp, pp);
 }
 
 /* -------- working with variables (set/get/copy/etc) -------- */
@@ -817,17 +825,21 @@ static double getvar_i(var *v)
 		v->number = 0;
 		s = v->string;
 		if (s && *s) {
+			debug_printf_eval("getvar_i: '%s'->", s);
 			v->number = my_strtod(&s);
+			debug_printf_eval("%f (s:'%s')\n", v->number, s);
 			if (v->type & VF_USER) {
 				s = skip_spaces(s);
 				if (*s != '\0')
 					v->type &= ~VF_USER;
 			}
 		} else {
+			debug_printf_eval("getvar_i: '%s'->zero\n", s);
 			v->type &= ~VF_USER;
 		}
 		v->type |= VF_CACHED;
 	}
+	debug_printf_eval("getvar_i: %f\n", v->number);
 	return v->number;
 }
 
@@ -849,6 +861,7 @@ static var *copyvar(var *dest, const var *src)
 	if (dest != src) {
 		clrvar(dest);
 		dest->type |= (src->type & ~(VF_DONTTOUCH | VF_FSTR));
+		debug_printf_eval("copyvar: number:%f string:'%s'\n", src->number, src->string);
 		dest->number = src->number;
 		if (src->string)
 			dest->string = xstrdup(src->string);
@@ -965,7 +978,6 @@ static uint32_t next_token(uint32_t expected)
 	const char *tl;
 	uint32_t tc;
 	const uint32_t *ti;
-	int l;
 
 	if (t_rollback) {
 		t_rollback = FALSE;
@@ -994,9 +1006,10 @@ static uint32_t next_token(uint32_t expected)
 			/* it's a string */
 			t_string = s = ++p;
 			while (*p != '\"') {
-				char *pp = p;
+				char *pp;
 				if (*p == '\0' || *p == '\n')
 					syntax_error(EMSG_UNEXP_EOS);
+				pp = p;
 				*s++ = nextchar(&pp);
 				p = pp;
 			}
@@ -1031,7 +1044,7 @@ static uint32_t next_token(uint32_t expected)
 			char *pp = p;
 			t_double = my_strtod(&pp);
 			p = pp;
-			if (*pp == '.')
+			if (*p == '.')
 				syntax_error(EMSG_UNEXP_TOKEN);
 			tc = TC_NUMBER;
 
@@ -1041,52 +1054,51 @@ static uint32_t next_token(uint32_t expected)
 			tc = 0x00000001;
 			ti = tokeninfo;
 			while (*tl) {
-				l = *tl++;
-				if (l == NTCC) {
+				int l = (unsigned char) *tl++;
+				if (l == (unsigned char) NTCC) {
 					tc <<= 1;
 					continue;
 				}
-				/* if token class is expected, token
-				 * matches and it's not a longer word,
-				 * then this is what we are looking for
+				/* if token class is expected,
+				 * token matches,
+				 * and it's not a longer word,
 				 */
 				if ((tc & (expected | TC_WORD | TC_NEWLINE))
-				 && *tl == *p && strncmp(p, tl, l) == 0
+				 && strncmp(p, tl, l) == 0
 				 && !((tc & TC_WORD) && isalnum_(p[l]))
 				) {
+					/* then this is what we are looking for */
 					t_info = *ti;
 					p += l;
-					break;
+					goto token_found;
 				}
 				ti++;
 				tl += l;
 			}
+			/* not a known token */
 
-			if (!*tl) {
-				/* it's a name (var/array/function),
-				 * otherwise it's something wrong
-				 */
-				if (!isalnum_(*p))
-					syntax_error(EMSG_UNEXP_TOKEN);
-
-				t_string = --p;
-				while (isalnum_(*++p)) {
-					p[-1] = *p;
-				}
-				p[-1] = '\0';
-				tc = TC_VARIABLE;
-				/* also consume whitespace between functionname and bracket */
-				if (!(expected & TC_VARIABLE) || (expected & TC_ARRAY))
-					p = skip_spaces(p);
-				if (*p == '(') {
-					tc = TC_FUNCTION;
-				} else {
-					if (*p == '[') {
-						p++;
-						tc = TC_ARRAY;
-					}
+			/* is it a name? (var/array/function) */
+			if (!isalnum_(*p))
+				syntax_error(EMSG_UNEXP_TOKEN); /* no */
+			/* yes */
+			t_string = --p;
+			while (isalnum_(*++p)) {
+				p[-1] = *p;
+			}
+			p[-1] = '\0';
+			tc = TC_VARIABLE;
+			/* also consume whitespace between functionname and bracket */
+			if (!(expected & TC_VARIABLE) || (expected & TC_ARRAY))
+				p = skip_spaces(p);
+			if (*p == '(') {
+				tc = TC_FUNCTION;
+			} else {
+				if (*p == '[') {
+					p++;
+					tc = TC_ARRAY;
 				}
 			}
+ token_found: ;
 		}
 		g_pos = p;
 
@@ -1164,6 +1176,7 @@ static node *parse_expr(uint32_t iexp)
 	xtc = TC_OPERAND | TC_UOPPRE | TC_REGEXP | iexp;
 
 	while (!((tc = next_token(xtc)) & iexp)) {
+
 		if (glptr && (t_info == (OC_COMPARE | VV | P(39) | 2))) {
 			/* input redirection (<) attached to glptr node */
 			cn = glptr->l.n = new_node(OC_CONCAT | SS | P(37));
@@ -1500,10 +1513,10 @@ static node *mk_splitter(const char *s, tsplitter *spl)
 		regfree(re);
 		regfree(ire); // TODO: nuke ire, use re+1?
 	}
-	if (strlen(s) > 1) {
+	if (s[0] && s[1]) { /* strlen(s) > 1 */
 		mk_re_node(s, n, re);
 	} else {
-		n->info = (uint32_t) *s;
+		n->info = (uint32_t) s[0];
 	}
 
 	return n;
@@ -1560,24 +1573,22 @@ static void fsrealloc(int size)
 	if (size >= maxfields) {
 		i = maxfields;
 		maxfields = size + 16;
-		Fields = xrealloc(Fields, maxfields * sizeof(var));
+		Fields = xrealloc(Fields, maxfields * sizeof(Fields[0]));
 		for (; i < maxfields; i++) {
 			Fields[i].type = VF_SPECIAL;
 			Fields[i].string = NULL;
 		}
 	}
-
-	if (size < nfields) {
-		for (i = size; i < nfields; i++) {
-			clrvar(Fields + i);
-		}
+	/* if size < nfields, clear extra field variables */
+	for (i = size; i < nfields; i++) {
+		clrvar(Fields + i);
 	}
 	nfields = size;
 }
 
 static int awk_split(const char *s, node *spl, char **slist)
 {
-	int l, n = 0;
+	int l, n;
 	char c[4];
 	char *s1;
 	regmatch_t pmatch[2]; // TODO: why [2]? [1] is enough...
@@ -1591,6 +1602,7 @@ static int awk_split(const char *s, node *spl, char **slist)
 	if (*getvar_s(intvar[RS]) == '\0')
 		c[2] = '\n';
 
+	n = 0;
 	if ((spl->info & OPCLSMASK) == OC_REGEXP) {  /* regex split */
 		if (!*s)
 			return n; /* "": zero fields */
@@ -1636,7 +1648,7 @@ static int awk_split(const char *s, node *spl, char **slist)
 		}
 		if (*s1)
 			n++;
-		while ((s1 = strpbrk(s1, c))) {
+		while ((s1 = strpbrk(s1, c)) != NULL) {
 			*s1++ = '\0';
 			n++;
 		}
@@ -1816,6 +1828,8 @@ static int awk_getline(rstream *rsm, var *v)
 	int fd, so, eo, r, rp;
 	char c, *m, *s;
 
+	debug_printf_eval("entered %s()\n", __func__);
+
 	/* we're using our own buffer since we need access to accumulating
 	 * characters
 	 */
@@ -1901,6 +1915,8 @@ static int awk_getline(rstream *rsm, var *v)
 	rsm->adv = a + eo;
 	rsm->pos = p - eo;
 	rsm->size = size;
+
+	debug_printf_eval("returning from %s(): %d\n", __func__, r);
 
 	return r;
 }
@@ -2148,11 +2164,10 @@ static NOINLINE var *exec_builtin(node *op, var *res)
 	switch (info) {
 
 	case B_a2:
-#if ENABLE_FEATURE_AWK_LIBM
-		setvar_i(res, atan2(getvar_i(av[0]), getvar_i(av[1])));
-#else
-		syntax_error(EMSG_NO_MATH);
-#endif
+		if (ENABLE_FEATURE_AWK_LIBM)
+			setvar_i(res, atan2(getvar_i(av[0]), getvar_i(av[1])));
+		else
+			syntax_error(EMSG_NO_MATH);
 		break;
 
 	case B_sp: {
@@ -2320,12 +2335,14 @@ static var *evaluate(node *op, var *res)
 #define fnargs (G.evaluate__fnargs)
 /* seed is initialized to 1 */
 #define seed   (G.evaluate__seed)
-#define	sreg   (G.evaluate__sreg)
+#define sreg   (G.evaluate__sreg)
 
 	var *v1;
 
 	if (!op)
 		return setvar_s(res, NULL);
+
+	debug_printf_eval("entered %s()\n", __func__);
 
 	v1 = nvalloc(2);
 
@@ -2347,19 +2364,27 @@ static var *evaluate(node *op, var *res)
 		opn = (opinfo & OPNMASK);
 		g_lineno = op->lineno;
 		op1 = op->l.n;
+		debug_printf_eval("opinfo:%08x opn:%08x\n", opinfo, opn);
 
 		/* execute inevitable things */
 		if (opinfo & OF_RES1)
 			L.v = evaluate(op1, v1);
 		if (opinfo & OF_RES2)
 			R.v = evaluate(op->r.n, v1+1);
-		if (opinfo & OF_STR1)
+		if (opinfo & OF_STR1) {
 			L.s = getvar_s(L.v);
-		if (opinfo & OF_STR2)
+			debug_printf_eval("L.s:'%s'\n", L.s);
+		}
+		if (opinfo & OF_STR2) {
 			R.s = getvar_s(R.v);
-		if (opinfo & OF_NUM1)
+			debug_printf_eval("R.s:'%s'\n", R.s);
+		}
+		if (opinfo & OF_NUM1) {
 			L_d = getvar_i(L.v);
+			debug_printf_eval("L_d:%f\n", L_d);
+		}
 
+		debug_printf_eval("switch(0x%x)\n", XC(opinfo & OPCLSMASK));
 		switch (XC(opinfo & OPCLSMASK)) {
 
 		/* -- iterative node type -- */
@@ -2526,6 +2551,7 @@ static var *evaluate(node *op, var *res)
 			break;
 
 		case XC( OC_MOVE ):
+			debug_printf_eval("MOVE\n");
 			/* if source is a temporary string, jusk relink it to dest */
 //Disabled: if R.v is numeric but happens to have cached R.v->string,
 //then L.v ends up being a string, which is wrong
@@ -2585,7 +2611,7 @@ static var *evaluate(node *op, var *res)
 						rsm->F = popen(L.s, "r");
 						rsm->is_pipe = TRUE;
 					} else {
-						rsm->F = fopen_for_read(L.s);		/* not xfopen! */
+						rsm->F = fopen_for_read(L.s);  /* not xfopen! */
 					}
 				}
 			} else {
@@ -2614,8 +2640,6 @@ static var *evaluate(node *op, var *res)
 
 		/* simple builtins */
 		case XC( OC_FBLTIN ): {
-			int i;
-			rstream *rsm;
 			double R_d = R_d; /* for compiler */
 
 			switch (opn) {
@@ -2626,35 +2650,40 @@ static var *evaluate(node *op, var *res)
 			case F_rn:
 				R_d = (double)rand() / (double)RAND_MAX;
 				break;
-#if ENABLE_FEATURE_AWK_LIBM
+
 			case F_co:
-				R_d = cos(L_d);
-				break;
+				if (ENABLE_FEATURE_AWK_LIBM) {
+					R_d = cos(L_d);
+					break;
+				}
 
 			case F_ex:
-				R_d = exp(L_d);
-				break;
+				if (ENABLE_FEATURE_AWK_LIBM) {
+					R_d = exp(L_d);
+					break;
+				}
 
 			case F_lg:
-				R_d = log(L_d);
-				break;
+				if (ENABLE_FEATURE_AWK_LIBM) {
+					R_d = log(L_d);
+					break;
+				}
 
 			case F_si:
-				R_d = sin(L_d);
-				break;
+				if (ENABLE_FEATURE_AWK_LIBM) {
+					R_d = sin(L_d);
+					break;
+				}
 
 			case F_sq:
-				R_d = sqrt(L_d);
-				break;
-#else
-			case F_co:
-			case F_ex:
-			case F_lg:
-			case F_si:
-			case F_sq:
+				if (ENABLE_FEATURE_AWK_LIBM) {
+					R_d = sqrt(L_d);
+					break;
+				}
+
 				syntax_error(EMSG_NO_MATH);
 				break;
-#endif
+
 			case F_sr:
 				R_d = (double)seed;
 				seed = op1 ? (unsigned)L_d : (unsigned)time(NULL);
@@ -2681,26 +2710,37 @@ static var *evaluate(node *op, var *res)
 				if (!op1) {
 					fflush(stdout);
 				} else if (L.s && *L.s) {
-					rsm = newfile(L.s);
+					rstream *rsm = newfile(L.s);
 					fflush(rsm->F);
 				} else {
 					fflush_all();
 				}
 				break;
 
-			case F_cl:
-				i = 0;
+			case F_cl: {
+				rstream *rsm;
+				int err = 0;
 				rsm = (rstream *)hash_search(fdhash, L.s);
+				debug_printf_eval("OC_FBLTIN F_cl rsm:%p\n", rsm);
 				if (rsm) {
-					i = rsm->is_pipe ? pclose(rsm->F) : fclose(rsm->F);
+					debug_printf_eval("OC_FBLTIN F_cl "
+						"rsm->is_pipe:%d, ->F:%p\n",
+						rsm->is_pipe, rsm->F);
+					/* Can be NULL if open failed. Example:
+					 * getline line <"doesnt_exist";
+					 * close("doesnt_exist"); <--- here rsm->F is NULL
+					 */
+					if (rsm->F)
+						err = rsm->is_pipe ? pclose(rsm->F) : fclose(rsm->F);
 					free(rsm->buffer);
 					hash_remove(fdhash, L.s);
 				}
-				if (i != 0)
+				if (err)
 					setvar_i(intvar[ERRNO], errno);
-				R_d = (double)i;
+				R_d = (double)err;
 				break;
 			}
+			} /* switch */
 			setvar_i(res, R_d);
 			break;
 		}
@@ -2777,6 +2817,7 @@ static var *evaluate(node *op, var *res)
 		case XC( OC_BINARY ):
 		case XC( OC_REPLACE ): {
 			double R_d = getvar_i(R.v);
+			debug_printf_eval("BINARY/REPLACE: R_d:%f opn:%c\n", R_d, opn);
 			switch (opn) {
 			case '+':
 				L_d += R_d;
@@ -2793,11 +2834,10 @@ static var *evaluate(node *op, var *res)
 				L_d /= R_d;
 				break;
 			case '&':
-#if ENABLE_FEATURE_AWK_LIBM
-				L_d = pow(L_d, R_d);
-#else
-				syntax_error(EMSG_NO_MATH);
-#endif
+				if (ENABLE_FEATURE_AWK_LIBM)
+					L_d = pow(L_d, R_d);
+				else
+					syntax_error(EMSG_NO_MATH);
 				break;
 			case '%':
 				if (R_d == 0)
@@ -2805,6 +2845,7 @@ static var *evaluate(node *op, var *res)
 				L_d -= (int)(L_d / R_d) * R_d;
 				break;
 			}
+			debug_printf_eval("BINARY/REPLACE result:%f\n", L_d);
 			res = setvar_i(((opinfo & OPCLSMASK) == OC_BINARY) ? res : L.v, L_d);
 			break;
 		}
@@ -2847,6 +2888,7 @@ static var *evaluate(node *op, var *res)
 	} /* while (op) */
 
 	nvfree(v1);
+	debug_printf_eval("returning from %s(): %p\n", __func__, res);
 	return res;
 #undef fnargs
 #undef seed
@@ -2887,21 +2929,21 @@ static int awk_exit(int r)
  * otherwise return 0 */
 static int is_assignment(const char *expr)
 {
-	char *exprc, *s, *s0, *s1;
+	char *exprc, *val, *s, *s1;
 
-	exprc = xstrdup(expr);
-	if (!isalnum_(*exprc) || (s = strchr(exprc, '=')) == NULL) {
-		free(exprc);
+	if (!isalnum_(*expr) || (val = strchr(expr, '=')) == NULL) {
 		return FALSE;
 	}
 
-	*s++ = '\0';
-	s0 = s1 = s;
-	while (*s)
-		*s1++ = nextchar(&s);
+	exprc = xstrdup(expr);
+	val = exprc + (val - expr);
+	*val++ = '\0';
 
-	*s1 = '\0';
-	setvar_u(newvar(exprc), s0);
+	s = s1 = val;
+	while ((*s1 = nextchar(&s)) != '\0')
+		s1++;
+
+	setvar_u(newvar(exprc), val);
 	free(exprc);
 	return TRUE;
 }

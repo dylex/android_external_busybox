@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2008 by Timo Teras <timo.teras@iki.fi>
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 #include "modutils.h"
 
@@ -72,6 +72,9 @@ char* FAST_FUNC parse_cmdline_module_options(char **argv)
 	while (*++argv) {
 		options = xrealloc(options, optlen + 2 + strlen(*argv) + 2);
 		/* Spaces handled by "" pairs, but no way of escaping quotes */
+//TODO: module-init-tools version 3.11.1 quotes only value:
+//it generates var="val with spaces", not "var=val with spaces"
+//(and it won't quote var *name* even if it has spaces)
 		optlen += sprintf(options + optlen, (strchr(*argv, ' ') ? "\"%s\" " : "%s "), *argv);
 	}
 	return options;

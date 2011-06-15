@@ -10,7 +10,7 @@
  * Written by Michael Meskes
  * Taken from coreutils and turned into a busybox applet by Mike Frysinger
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 #include "libbb.h"
 
@@ -253,14 +253,12 @@ static void FAST_FUNC print_stat(char *pformat, const char m,
 		strcat(pformat, "lu");
 		printf(pformat, (unsigned long) statbuf->st_uid);
 	} else if (m == 'U') {
-		setpwent();
 		pw_ent = getpwuid(statbuf->st_uid);
 		printfs(pformat, (pw_ent != NULL) ? pw_ent->pw_name : "UNKNOWN");
 	} else if (m == 'g') {
 		strcat(pformat, "lu");
 		printf(pformat, (unsigned long) statbuf->st_gid);
 	} else if (m == 'G') {
-		setgrent();
 		gw_ent = getgrgid(statbuf->st_gid);
 		printfs(pformat, (gw_ent != NULL) ? gw_ent->gr_name : "UNKNOWN");
 	} else if (m == 't') {
@@ -477,7 +475,7 @@ static bool do_statfs(const char *filename, const char *format)
 	if (scontext)
 		freecon(scontext);
 # endif
-#endif	/* FEATURE_STAT_FORMAT */
+#endif  /* FEATURE_STAT_FORMAT */
 	return 1;
 }
 
@@ -597,20 +595,20 @@ static bool do_stat(const char *filename, const char *format)
 # endif
 	} else {
 		char *linkname = NULL;
-
 		struct passwd *pw_ent;
 		struct group *gw_ent;
-		setgrent();
+
 		gw_ent = getgrgid(statbuf.st_gid);
-		setpwent();
 		pw_ent = getpwuid(statbuf.st_uid);
 
 		if (S_ISLNK(statbuf.st_mode))
 			linkname = xmalloc_readlink_or_warn(filename);
-		if (linkname)
+		if (linkname) {
 			printf("  File: '%s' -> '%s'\n", filename, linkname);
-		else
+			free(linkname);
+		} else {
 			printf("  File: '%s'\n", filename);
+		}
 
 		printf("  Size: %-10llu\tBlocks: %-10llu IO Block: %-6lu %s\n"
 		       "Device: %llxh/%llud\tInode: %-10llu  Links: %-5lu",
@@ -638,12 +636,11 @@ static bool do_stat(const char *filename, const char *format)
 # if ENABLE_SELINUX
 		printf("   S_Context: %lc\n", *scontext);
 # endif
-		printf("Access: %s\n" "Modify: %s\n" "Change: %s\n",
-		       human_time(statbuf.st_atime),
-		       human_time(statbuf.st_mtime),
-		       human_time(statbuf.st_ctime));
+		printf("Access: %s\n", human_time(statbuf.st_atime));
+		printf("Modify: %s\n", human_time(statbuf.st_mtime));
+		printf("Change: %s\n", human_time(statbuf.st_ctime));
 	}
-#endif	/* FEATURE_STAT_FORMAT */
+#endif  /* FEATURE_STAT_FORMAT */
 	return 1;
 }
 

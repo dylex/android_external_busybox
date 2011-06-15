@@ -2,7 +2,7 @@
 /*
  * Rewrite by Russ Dill <Russ.Dill@asu.edu> July 2001
  *
- * Licensed under GPLv2, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 #include "common.h"
 
@@ -37,6 +37,7 @@ const struct dhcp_optflag dhcp_optflags[] = {
 	{ OPTION_U8                               , 0x17 }, /* DHCP_IP_TTL        */
 	{ OPTION_U16                              , 0x1a }, /* DHCP_MTU           */
 	{ OPTION_IP                   | OPTION_REQ, 0x1c }, /* DHCP_BROADCAST     */
+	{ OPTION_IP_PAIR | OPTION_LIST            , 0x21 }, /* DHCP_ROUTES        */
 	{ OPTION_STRING                           , 0x28 }, /* DHCP_NIS_DOMAIN    */
 	{ OPTION_IP | OPTION_LIST                 , 0x29 }, /* DHCP_NIS_SERVER    */
 	{ OPTION_IP | OPTION_LIST     | OPTION_REQ, 0x2a }, /* DHCP_NTP_SERVER    */
@@ -54,6 +55,7 @@ const struct dhcp_optflag dhcp_optflags[] = {
 	{ OPTION_SIP_SERVERS                      , 0x78 }, /* DHCP_SIP_SERVERS   */
 #endif
 	{ OPTION_STATIC_ROUTES                    , 0x79 }, /* DHCP_STATIC_ROUTES */
+	{ OPTION_STATIC_ROUTES                    , 0xf9 }, /* DHCP_MS_STATIC_ROUTES */
 	{ OPTION_STRING                           , 0xfc }, /* DHCP_WPAD          */
 
 	/* Options below have no match in dhcp_option_strings[],
@@ -66,9 +68,10 @@ const struct dhcp_optflag dhcp_optflags[] = {
 	{ OPTION_IP                               , 0x32 }, /* DHCP_REQUESTED_IP  */
 	{ OPTION_U8                               , 0x35 }, /* DHCP_MESSAGE_TYPE  */
 	{ OPTION_U16                              , 0x39 }, /* DHCP_MAX_SIZE      */
-	{ OPTION_STRING                           , 0x3c }, /* DHCP_VENDOR        */
-//FIXME: handling of this option is not exactly correct:
-	{ OPTION_STRING                           , 0x3d }, /* DHCP_CLIENT_ID     */
+//looks like these opts will work just fine even without these defs:
+//	{ OPTION_STRING                           , 0x3c }, /* DHCP_VENDOR        */
+//	/* not really a string: */
+//	{ OPTION_STRING                           , 0x3d }, /* DHCP_CLIENT_ID     */
 	{ 0, 0 } /* zeroed terminating entry */
 };
 
@@ -95,6 +98,7 @@ const char dhcp_option_strings[] ALIGN1 =
 	"ipttl" "\0"       /* DHCP_IP_TTL         */
 	"mtu" "\0"         /* DHCP_MTU            */
 	"broadcast" "\0"   /* DHCP_BROADCAST      */
+	"routes" "\0"      /* DHCP_ROUTES         */
 	"nisdomain" "\0"   /* DHCP_NIS_DOMAIN     */
 	"nissrv" "\0"      /* DHCP_NIS_SERVER     */
 	"ntpsrv" "\0"      /* DHCP_NTP_SERVER     */
@@ -114,6 +118,7 @@ const char dhcp_option_strings[] ALIGN1 =
 // doesn't work in udhcpd.conf since OPTION_STATIC_ROUTES
 // is not handled yet by "string->option" conversion code:
 	"staticroutes" "\0"/* DHCP_STATIC_ROUTES  */
+	"msstaticroutes""\0"/* DHCP_MS_STATIC_ROUTES */
 	"wpad" "\0"        /* DHCP_WPAD           */
 	;
 
@@ -370,7 +375,7 @@ static NOINLINE void attach_option(
 		new->data = xmalloc(length + OPT_DATA);
 		new->data[OPT_CODE] = optflag->code;
 		new->data[OPT_LEN] = length;
-		memcpy(new->data + OPT_DATA, buffer, length);
+		memcpy(new->data + OPT_DATA, (allocated ? allocated : buffer), length);
 
 		curr = opt_list;
 		while (*curr && (*curr)->data[OPT_CODE] < optflag->code)

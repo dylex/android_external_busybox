@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2004, Glenn McGrath
  *
- * Licensed under the GPL v2, see the file LICENSE in this tarball.
+ * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 #include "libbb.h"
 
@@ -86,7 +86,8 @@ int seq_main(int argc, char **argv)
 	v = first;
 	n = 0;
 	while (increment >= 0 ? v <= last : v >= last) {
-		printf("%s%0*.*f", sep, width, frac_part, v);
+		if (printf("%s%0*.*f", sep, width, frac_part, v) < 0)
+			break; /* I/O error, bail out (yes, this really happens) */
 		sep = opt_s;
 		/* v += increment; - would accumulate floating point errors */
 		n++;
